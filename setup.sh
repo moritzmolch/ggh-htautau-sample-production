@@ -17,6 +17,9 @@ action () {
     export LAW_CONFIG_FILE="${base_dir}/law.cfg"
     export LUIGI_CONFIG_PATH="${base_dir}/luigi.cfg"
 
+    # add tasks as library to PYTHONPATH
+    export PYTHONPATH="${PYTHONPATH}:${PROD_BASE_PATH}"
+
 }
 
 
