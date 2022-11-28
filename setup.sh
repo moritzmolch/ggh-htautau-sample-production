@@ -11,6 +11,7 @@ action () {
     export PROD_BASE_PATH="${base_dir}"
     export PROD_BASE_DATA_PATH="${PROD_BASE_PATH}/data"
     export PROD_BASE_CONFIG_PATH="${PROD_BASE_PATH}/config"
+    export PROD_BASE_INPUTS_PATH="${PROD_BASE_PATH}/inputs"
 
     # law and luigi paths
     export LAW_HOME="${base_dir}/.law"
