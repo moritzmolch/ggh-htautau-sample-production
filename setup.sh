@@ -13,6 +13,9 @@ action () {
     export PROD_BASE_CONFIG_PATH="${PROD_BASE_PATH}/config"
     export PROD_BASE_INPUTS_PATH="${PROD_BASE_PATH}/inputs"
 
+    # CMSSW path
+    export PROD_CMSSW_BASE_PATH="${PROD_BASE_PATH}/packages/CMSSW_10_6_29_patch1"
+
     # law and luigi paths
     export LAW_HOME="${base_dir}/.law"
     export LAW_CONFIG_FILE="${base_dir}/law.cfg"
