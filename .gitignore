@@ -161,3 +161,7 @@ cython_debug/
 
 # law index directory
 .law/
+
+# packages and temporary directory (contains software for example)
+packages/
+tmp/

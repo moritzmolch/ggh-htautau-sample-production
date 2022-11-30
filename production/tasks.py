@@ -121,8 +121,9 @@ class CreateAODSimConfig(ConfigTask, law.SandboxTask, law.LocalWorkflow):
         return self.local_target(self.branch_data["sample_basename"] + "_aodsim_cfg.py")
 
     def build_command(self, fragment_path, python_filename, output_filename, number_of_events):
-        # fragment path
-        arguments = [fragment_path, ]
+        cmd = ["cmsDriver.py", fragment_path]
+
+        arguments = []
 
         # python filename
         arguments.append(("--python_filename", python_filename))
@@ -165,7 +166,7 @@ class CreateAODSimConfig(ConfigTask, law.SandboxTask, law.LocalWorkflow):
         arguments.append(("-n", "{n:d}".format(n=number_of_events)))
 
         # unravel the command
-        return ["cmsDriver.py", ] + [substring for arg in arguments for substring in arg]
+        return cmd + [substring for arg in arguments for substring in arg]
 
     def run(self):
         fragment_path = law.util.rel_path(self.input()["CopyToCMSSW"].path, self.cmssw_path)
@@ -176,14 +177,14 @@ class CreateAODSimConfig(ConfigTask, law.SandboxTask, law.LocalWorkflow):
             output.parent.touch()
         with tempfile.TemporaryDirectory(dir=output.parent.path) as tmpdir:
             cmd = self.build_command(fragment_path, python_filename, output_filename, self.branch_data["number_of_events"])
-            print(cmd)
-            #ret_code, out, err = law.util.interruptable_popen(
-            #    cmd, cwd=tmpdir, env=self.env, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
-            #)
-            #if ret_code != 0:
-            #    raise RuntimeError(
-            #        "Command {cmd} failed with exit code {ret_code:d}".format(cmd=cmd, ret_code=ret_code) +
-            #        "Output: {out:s}".format(out=out) +
-            #        "Error: {err:s}".format(err=err)
-            #    )
-            #output.copy_from_local(os.path.join(tmpdir, python_filename))
+            print(self.env)
+            ret_code, out, err = law.util.interruptable_popen(
+                cmd, cwd=tmpdir, stdout=subprocess.PIPE, stderr=subprocess.PIPE, env=self.env
+            )
+            if ret_code != 0:
+                raise RuntimeError(
+                    "Command {cmd} failed with exit code {ret_code:d}\n".format(cmd=cmd, ret_code=ret_code) +
+                    "Output: {out:s}\n".format(out=out) +
+                    "Error: {err:s}".format(err=err)
+                )
+            output.copy_from_local(os.path.join(tmpdir, python_filename))

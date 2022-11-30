@@ -9,8 +9,8 @@ action () {
 
     # source the CMSSW version
     cd "${PROD_CMSSW_BASE_PATH}" || exit "$?"
-    eval "$( scramv1 runtime -sh )"
-    cd "${current_dir}"
+    eval "$( scramv1 runtime -sh )" || exit "$?"
+    cd "${current_dir}" || exit "$?"
 }
 
 
