@@ -82,10 +82,9 @@ class CopyToCMSSW(CMSSWTask, law.LocalWorkflow):
         self.input()["CreateFragments"].copy_to_local(self.output().path)
 
 
-class CreateAODSimConfig(ConfigTask, law.SandboxTask, law.LocalWorkflow):
+class CreateAODSimConfig(ConfigTask, law.LocalWorkflow):
 
     name = "aodsim_config"
-    sandbox = "bash::${PROD_BASE_PATH}/sandboxes/cmssw_env.sh"
 
     beamspot = "Realistic25ns13TeVEarly2018Collision"
     era = "Run2_2018_FastSim"
@@ -99,7 +98,7 @@ class CreateAODSimConfig(ConfigTask, law.SandboxTask, law.LocalWorkflow):
     datamix = "PreMix"
     pileup_input = "dbs:/Neutrino_E-10_gun/RunIIFall17FSPrePremix-PUFSUL18CP5_106X_upgrade2018_realistic_v16-v1/PREMIX"
 
-    add_monitoring = True    
+    add_monitoring = True
     use_random_service_helper = True
     use_fast_simulation = True
     is_mc_dataset = True
@@ -177,14 +176,13 @@ class CreateAODSimConfig(ConfigTask, law.SandboxTask, law.LocalWorkflow):
             output.parent.touch()
         with tempfile.TemporaryDirectory(dir=output.parent.path) as tmpdir:
             cmd = self.build_command(fragment_path, python_filename, output_filename, self.branch_data["number_of_events"])
-            print(self.env)
             ret_code, out, err = law.util.interruptable_popen(
-                cmd, cwd=tmpdir, stdout=subprocess.PIPE, stderr=subprocess.PIPE, env=self.env
+                cmd, cwd=tmpdir, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
             )
             if ret_code != 0:
                 raise RuntimeError(
-                    "Command {cmd} failed with exit code {ret_code:d}\n".format(cmd=cmd, ret_code=ret_code) +
-                    "Output: {out:s}\n".format(out=out) +
+                    "Command {cmd} failed with exit code {ret_code:d}".format(cmd=cmd, ret_code=ret_code) +
+                    "Output: {out:s}".format(out=out) +
                     "Error: {err:s}".format(err=err)
                 )
             output.copy_from_local(os.path.join(tmpdir, python_filename))
