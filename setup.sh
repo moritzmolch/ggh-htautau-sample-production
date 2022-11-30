@@ -5,11 +5,16 @@ _cmssw_pip_install () {
 }
 
 install_cmssw () {
-    local install_dir="${1}"
-    local cmssw_version="${2}"
-    local scram_arch="${3}"
-    local cmssw_base_path="${install_dir}/${cmssw_version}"
-    local current_dir="$( pwd )"
+    local install_dir
+    install_dir="${1}"
+    local cmssw_version
+    cmssw_version="${2}"
+    local scram_arch
+    scram_arch="${3}"
+    local cmssw_base_path
+    cmssw_base_path="${install_dir}/${cmssw_version}"
+    local current_dir
+    current_dir="$( pwd )"
 
     cd "${install_dir}" || return "$?"
     export SCRAM_ARCH="${scram_arch}"
@@ -22,8 +27,10 @@ install_cmssw () {
 
 
 set_cmssw_environment () {
-    local cmssw_base_path="${1}"
-    local current_dir="$( pwd )"
+    local cmssw_base_path
+    cmssw_base_path="${1}"
+    local current_dir
+    current_dir="$( pwd )"
 
     cd "${cmssw_base_path}/src" || return "$?"
     eval "$( scramv1 runtime -sh )" return "$?"
@@ -34,8 +41,10 @@ set_cmssw_environment () {
 action () {
 
     # directory of that script and current working directory 
-    local base_dir="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
-    local current_dir="$( pwd )"
+    local base_dir
+    base_dir="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+    local current_dir
+    current_dir="$( pwd )"
 
     # production base paths
     export PROD_BASE_PATH="${base_dir}"
@@ -64,7 +73,8 @@ action () {
     export LUIGI_CONFIG_PATH="${base_dir}/luigi.cfg"
 
     # add tasks as library to PYTHONPATH
-    export PYTHONPATH="${PYTHONPATH}:${PROD_BASE_PATH}"
+    export PYTHONPATH="${PROD_BASE_PATH}:${PROD_SOFTWARE}/lib/python3.6/site-packages:${PYTHONPATH}"
+    export PATH="${PROD_SOFTWARE}/bin:${PATH}"
 
 }
 
