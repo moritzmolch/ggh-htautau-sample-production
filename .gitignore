@@ -163,5 +163,4 @@ cython_debug/
 .law/
 
 # packages and temporary directory (contains software for example)
-packages/
-tmp/
+usr/
