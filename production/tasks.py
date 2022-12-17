@@ -5,59 +5,8 @@ import luigi
 import tempfile
 import subprocess
 
+from production.utils import HTTDataset
 from production.framework import ProductionTask
-
-
-class HTTDataset():
-
-    def __init__(self, higgs_mass, higgs_width, number_of_events, branch=None):
-        self.higgs_mass = higgs_mass
-        self.higgs_width = higgs_width
-        self.has_modified_higgs_width = higgs_width != -1
-        self.number_of_events = number_of_events
-        self.branch = branch
-        higgs_mass_text = str(int(higgs_mass)) if int(higgs_mass) == higgs_mass else str(higgs_mass).replace(".", "p")
-        self.basename = "GluGluHToTauTau_MH{higgs_mass:s}_pythia8_TuneCP5".format(higgs_mass=higgs_mass_text)
-        self.files = self._create_file_splitting()
-
-    def _create_file_splitting(self):
-        files = []
-        index = 0
-        i_start, i_stop = 0, 0
-        while i_start < self.number_of_events:
-            if i_start < 10000:
-                i_stop = i_start + 2000
-            else:
-                i_stop = i_start + 4000
-            f = HTTFile(self, index, i_stop - i_start)
-            files.append(f)
-            i_start = i_stop
-            index += 1
-        return files
-
-    def get_fragment_filename(self):
-        return "{basename:s}_cff.py".format(basename=self.basename)
-
-    def get_step_config_filename(self, step):
-        return "{basename:s}_{step:s}_cfg.py".format(basename=self.basename, step=step)
-
-    def get_step_root_filename(self, step):
-        return "{basename:s}_{step:s}.root".format(basename=self.basename, step=step)
-
-
-class HTTFile():
-
-    def __init__(self, dataset, index, number_of_events, branch=None):
-        self.dataset = dataset
-        self.index = index
-        self.number_of_events = number_of_events
-        self.branch = branch
-
-    def get_step_config_filename(self, step):
-        return "{basename:s}_{step:s}_{index:d}_cfg.py".format(basename=self.dataset.basename, step=step, index=self.index)
-
-    def get_step_root_filename(self, step):
-        return "{basename:s}_{step:s}_{index:d}.root".format(basename=self.dataset.basename, step=step, index=self.index)
 
 
 class CreateFragment(ProductionTask, law.LocalWorkflow):
@@ -79,7 +28,9 @@ class CreateFragment(ProductionTask, law.LocalWorkflow):
                     float(row[1]),
                     int(row[2]),
                 )
-                branch_map[branch] = HTTDataset(higgs_mass, higgs_width, number_of_events, branch=branch)
+                branch_map[branch] = HTTDataset(
+                    higgs_mass, higgs_width, number_of_events, branch=branch
+                )
                 branch += 1
         return branch_map
 
@@ -144,7 +95,10 @@ class CreateAODSIMConfigTemplate(ProductionTask, law.LocalWorkflow):
 
     cms_driver_proc_modifiers = "premix_stage2"
     cms_driver_datamix = "PreMix"
-    cms_driver_pileup_input = "dbs:/Neutrino_E-10_gun/RunIIFall17FSPrePremix-PUFSUL18CP5_106X_upgrade2018_realistic_v16-v1/PREMIX"
+    cms_driver_pileup_input = (
+        "dbs:/Neutrino_E-10_gun/RunIIFall17FSPrePremix-PUFSUL18CP5_106X_upgrade2018_realistic"
+        + "_v16-v1/PREMIX"
+    )
 
     cms_driver_add_monitoring = True
     cms_driver_use_random_service_helper = True
@@ -217,14 +171,14 @@ class CreateAODSIMConfigTemplate(ProductionTask, law.LocalWorkflow):
                 ("--customise", "Configuration/DataProcessing/Utils.addMonitoring")
             )
         if self.cms_driver_use_random_service_helper:
-           arguments.append(
+            arguments.append(
                 (
                     "--customise_commands",
                     "from IOMC.RandomEngine.RandomServiceHelper import RandomNumberServiceHelper;"
                     + "randSvc = RandomNumberServiceHelper(process.RandomNumberGeneratorService);"
                     + "randSvc.populate()",
                 )
-           )
+            )
 
         # data-taking conditions
         arguments.append(("--beamspot", self.cms_driver_beamspot))
@@ -296,7 +250,7 @@ class SplitAODSIMConfigs(ProductionTask, law.LocalWorkflow):
                 branch_map[branch] = htt_file
                 branch += 1
         return branch_map
- 
+
     def workflow_requires(self):
         return {
             "CreateAODSIMConfigTemplate": CreateAODSIMConfigTemplate.req(self),
@@ -304,7 +258,9 @@ class SplitAODSIMConfigs(ProductionTask, law.LocalWorkflow):
 
     def requires(self):
         return {
-            "CreateAODSIMConfigTemplate": CreateAODSIMConfigTemplate.req(self, branch=self.branch_data.dataset.branch),
+            "CreateAODSIMConfigTemplate": CreateAODSIMConfigTemplate.req(
+                self, branch=self.branch_data.dataset.branch
+            ),
         }
 
     def output(self):
@@ -330,8 +286,14 @@ class SplitAODSIMConfigs(ProductionTask, law.LocalWorkflow):
         print(_input.path, _output.path)
 
         # replace filenames
-        template = template.replace(self.branch_data.dataset.get_step_config_filename(self.step), self.branch_data.get_step_config_filename(self.step))
-        template = template.replace(self.branch_data.dataset.get_step_root_filename(self.step), self.branch_data.get_step_root_filename(self.step))
+        template = template.replace(
+            self.branch_data.dataset.get_step_config_filename(self.step),
+            self.branch_data.get_step_config_filename(self.step),
+        )
+        template = template.replace(
+            self.branch_data.dataset.get_step_root_filename(self.step),
+            self.branch_data.get_step_root_filename(self.step),
+        )
 
         # replace number of events
         n_events = self.branch_data.number_of_events
@@ -353,4 +315,3 @@ class SplitAODSIMConfigs(ProductionTask, law.LocalWorkflow):
 
         # write modified configuration to destination
         _output.dump(template, formatter="text")
-
