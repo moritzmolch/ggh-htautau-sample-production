@@ -165,5 +165,9 @@ cython_debug/
 # packages and temporary directory (contains software for example)
 usr/
 
+# output directories
+config/
+data/
+
 # CMSSW release
 CMSSW_*
