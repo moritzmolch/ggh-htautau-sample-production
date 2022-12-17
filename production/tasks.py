@@ -5,28 +5,7 @@ import luigi
 import tempfile
 import subprocess
 
-law.contrib.load("cms")
-
-
-class HTTDataset(object):
-
-    def __init__(self, higgs_mass, higgs_width, number_of_events):
-        self.higgs_mass = higgs_mass
-        self.higgs_width = None
-        self.has_manual_width = False if self.higgs_width == -1 else True
-        if self.has_manual_width:
-            self.higgs_width = higgs_width
-        if int(self.higgs_mass) == self.higgs_mass:
-            self.basename = "GluGluHToTauTau_MH{0:d}_pythia8_TuneCP5".format(int(self.higgs_mass))
-        else:
-            self.basename = "GluGluHToTauTau_MH{0:s}_pythia8_TuneCP5".format(str(self.higgs_mass).replace(".", "p"))
-        self.number_of_events = number_of_events
-
-
-class ProductionTask(law.Task):
-
-    def __init__(self, *args, **kwargs):
-        super(ProductionTask, self).__init__(*args, **kwargs)
+from production.framework import ProductionTask
 
 
 class CreateFragment(ProductionTask, law.LocalWorkflow):
@@ -43,16 +22,40 @@ class CreateFragment(ProductionTask, law.LocalWorkflow):
             for row in csv_reader:
                 if row[0].strip().startswith("#"):
                     continue
-                branch_map[i] = HTTDataset(
-                    higgs_mass=float(row[0]), higgs_width=float(row[1]), number_of_events=int(row[2])
+                higgs_mass, higgs_width, number_of_events = (
+                    float(row[0]),
+                    float(row[1]),
+                    int(row[2]),
                 )
+                higgs_mass_str = (
+                    str(higgs_mass)
+                    if higgs_mass == int(higgs_mass)
+                    else str(higgs_mass).replace(".", "p")
+                )
+                basename = "GluGluHToTauTau_MH{higgs_mass:s}_pythia8_TuneCP5".format(
+                    higgs_mass=higgs_mass_str
+                )
+                branch_map[i] = {
+                    "basename": basename,
+                    "fragment_filename": basename + "_cff.py",
+                    "higgs_mass": higgs_mass,
+                    "higgs_width": higgs_width,
+                    "number_of_events": number_of_events,
+                }
                 i += 1
         return branch_map
 
     def output(self):
-        return law.LocalFileTarget(os.path.join(
-            self.cmssw_path, "src", "Configuration", "GenProduction", "python", self.branch_data.basename + "_cff.py"
-        ))
+        return law.LocalFileTarget(
+            os.path.join(
+                self.cmssw_path,
+                "src",
+                "Configuration",
+                "GenProduction",
+                "python",
+                self.branch_data["fragment_filename"],
+            )
+        )
 
     def run(self):
         _output = self.output()
@@ -62,27 +65,33 @@ class CreateFragment(ProductionTask, law.LocalWorkflow):
         with open(self.fragment_template_path, "r") as f:
             fragment_content = f.read()
         if dataset.has_manual_width:
-            process_parameters_block = "processParameters = cms.vstring(\n" + \
-                                       "            'HiggsSM:gg2H = on',\n" + \
-                                       "            '25:onMode = off',\n" + \
-                                       "            '25:onIfMatch = 15 -15',\n" + \
-                                       "            '25:m0 = {0:f}',\n".format(dataset.higgs_mass) + \
-                                       "        ),"
+            process_parameters_block = (
+                "processParameters = cms.vstring(\n"
+                + "            'HiggsSM:gg2H = on',\n"
+                + "            '25:onMode = off',\n"
+                + "            '25:onIfMatch = 15 -15',\n"
+                + "            '25:m0 = {0:f}',\n".format(dataset["higgs_mass"])
+                + "        ),"
+            )
         else:
-            process_parameters_block = "processParameters = cms.vstring(\n" + \
-                                       "            'HiggsSM:gg2H = on',\n" + \
-                                       "            '25:onMode = off',\n" + \
-                                       "            '25:onIfMatch = 15 -15',\n" + \
-                                       "            '25:m0 = {0:f}',\n".format(dataset.higgs_mass) + \
-                                       "            '25:mWidth = {0:f}',\n".format(dataset.higgs_width) + \
-                                       "            '25:doForceWidth = on',\n" + \
-                                       "        ),"
-        fragment_content = fragment_content.replace("{{ process_parameters_block }}", process_parameters_block)
+            process_parameters_block = (
+                "processParameters = cms.vstring(\n"
+                + "            'HiggsSM:gg2H = on',\n"
+                + "            '25:onMode = off',\n"
+                + "            '25:onIfMatch = 15 -15',\n"
+                + "            '25:m0 = {0:f}',\n".format(dataset["higgs_mass"])
+                + "            '25:mWidth = {0:f}',\n".format(dataset["higgs_width"])
+                + "            '25:doForceWidth = on',\n"
+                + "        ),"
+            )
+        fragment_content = fragment_content.replace(
+            "{{ process_parameters_block }}", process_parameters_block
+        )
         with _output.open("w") as f:
             f.write(fragment_content)
 
 
-class ConfigAODSIM(ProductionTask, law.LocalWorkflow):
+class CreateAODSIMConfigTemplate(ProductionTask, law.LocalWorkflow):
 
     prod_config_path = luigi.PathParameter(exists=True)
     cmssw_path = luigi.PathParameter(exists=True)
@@ -98,7 +107,10 @@ class ConfigAODSIM(ProductionTask, law.LocalWorkflow):
 
     cms_driver_proc_modifiers = "premix_stage2"
     cms_driver_datamix = "PreMix"
-    cms_driver_pileup_input = "dbs:/Neutrino_E-10_gun/RunIIFall17FSPrePremix-PUFSUL18CP5_106X_upgrade2018_realistic_v16-v1/PREMIX"
+    cms_driver_pileup_input = (
+        "dbs:/Neutrino_E-10_gun/RunIIFall17FSPrePremix-PUFSUL18CP5_106X_upgrade2018_realistic"
+        + "_v16-v1/PREMIX"
+    )
 
     cms_driver_add_monitoring = True
     cms_driver_use_random_service_helper = True
@@ -106,7 +118,16 @@ class ConfigAODSIM(ProductionTask, law.LocalWorkflow):
     cms_driver_is_mc_dataset = True
 
     def create_branch_map(self):
-        return CreateFragment.req(self).get_branch_map()
+        branch_map = CreateFragment.req(self).get_branch_map()
+        for branch in branch_map:
+            basename = branch_map[branch]["basename"]
+            aodsim_basename = "{basename:s}_{step:s}".format(
+                basename=basename,
+                step=self.step,
+            )
+            branch_map[branch]["aodsim_basename"] = aodsim_basename
+            branch_map[branch]["aodsim_cfg_filename"] = aodsim_basename + "_cfg.py"
+        return branch_map
 
     def workflow_requires(self):
         return {
@@ -120,12 +141,18 @@ class ConfigAODSIM(ProductionTask, law.LocalWorkflow):
 
     def output(self):
         return law.LocalFileTarget(
-            os.path.join(self.prod_config_path, self.branch_data.basename + "_aodsim_cfg.py")
+            os.path.join(
+                self.prod_config_path,
+                self.__class__.__name__,
+                self.branch_data["aodsim_cfg_filename"],
+            )
         )
 
     def get_relative_fragment_path(self):
         fragment_path = self.input()["CreateFragment"].path
-        return os.path.relpath(fragment_path, start=os.path.join(self.cmssw_path, "src"))
+        return os.path.relpath(
+            fragment_path, start=os.path.join(self.cmssw_path, "src")
+        )
 
     def get_root_input_filename(self):
         return None
@@ -135,14 +162,26 @@ class ConfigAODSIM(ProductionTask, law.LocalWorkflow):
 
     def build_command(self):
         # base command and input file/fragment
-        cmd = ["python3", "-m", "cmsDriver.py", ]
+        cmd = [
+            "python3",
+            "-m",
+            "cmsDriver.py",
+        ]
         arguments = []
-        if self.get_root_input_filename() is None and self.get_relative_fragment_path() is not None:
+        if (
+            self.get_root_input_filename() is None
+            and self.get_relative_fragment_path() is not None
+        ):
             cmd.append(self.get_relative_fragment_path())
-        elif self.get_root_input_filename() is not None and self.get_relative_fragment_path() is None:
+        elif (
+            self.get_root_input_filename() is not None
+            and self.get_relative_fragment_path() is None
+        ):
             arguments.append(("--filein", "file:" + self.get_root_input_filename()))
         else:
-            raise RuntimeError("Exactly one of fragment path and root input file has to be set.")
+            raise RuntimeError(
+                "Exactly one of fragment path and root input file has to be set."
+            )
 
         # python filename and output file
         arguments.append(("--python_filename", os.path.basename(self.output().path)))
@@ -150,14 +189,18 @@ class ConfigAODSIM(ProductionTask, law.LocalWorkflow):
 
         # customization
         if self.cms_driver_add_monitoring:
-            arguments.append(("--customise", "Configuration/DataProcessing/Utils.addMonitoring"))
+            arguments.append(
+                ("--customise", "Configuration/DataProcessing/Utils.addMonitoring")
+            )
         if self.cms_driver_use_random_service_helper:
-            arguments.append((
-                "--customise_commands",
-                "from IOMC.RandomEngine.RandomServiceHelper import RandomNumberServiceHelper;" +
-                "randSvc = RandomNumberServiceHelper(process.RandomNumberGeneratorService);" +
-                "randSvc.populate()"
-            ))
+            arguments.append(
+                (
+                    "--customise_commands",
+                    "from IOMC.RandomEngine.RandomServiceHelper import RandomNumberServiceHelper;"
+                    + "randSvc = RandomNumberServiceHelper(process.RandomNumberGeneratorService);"
+                    + "randSvc.populate()",
+                )
+            )
 
         # data-taking conditions
         arguments.append(("--beamspot", self.cms_driver_beamspot))
@@ -176,15 +219,15 @@ class ConfigAODSIM(ProductionTask, law.LocalWorkflow):
 
         # switches
         if self.cms_driver_use_fast_simulation:
-            arguments.append(("--fast", ))
+            arguments.append(("--fast",))
         if self.cms_driver_is_mc_dataset:
-            arguments.append(("--mc", ))
-        arguments.append(("--no_exec", ))
+            arguments.append(("--mc",))
+        arguments.append(("--no_exec",))
 
         # number of events
         arguments.append(("-n", "-1"))
 
-        # unravel the command
+        # ravel the command
         return cmd + [substring for arg in arguments for substring in arg]
 
     def run(self):
@@ -194,112 +237,113 @@ class ConfigAODSIM(ProductionTask, law.LocalWorkflow):
         with tempfile.TemporaryDirectory(dir=_output.parent.path) as tmpdir:
             cmd = self.build_command()
             ret_code, out, err = law.util.interruptable_popen(
-                cmd, cwd=tmpdir, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
-                env=os.environ
+                cmd,
+                cwd=tmpdir,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                env=os.environ,
             )
             if ret_code != 0:
                 raise RuntimeError(
-                    "Command {cmd} failed with exit code {ret_code:d}".format(cmd=cmd, ret_code=ret_code) +
-                    "Output: {out:s}".format(out=out) +
-                    "Error: {err:s}".format(err=err)
+                    "Command {cmd} failed with exit code {ret_code:d}".format(
+                        cmd=cmd, ret_code=ret_code
+                    )
+                    + "Output: {out:s}".format(out=out)
+                    + "Error: {err:s}".format(err=err)
                 )
             python_filename = os.path.basename(_output.path)
             _output.copy_from_local(os.path.join(tmpdir, python_filename))
 
 
-class ConfigMINIAOD(ProductionTask, law.LocalWorkflow):
+class SplitAODSIMConfigs(ProductionTask, law.LocalWorkflow):
 
-    prod_config_path = luigi.PathParameter()
-    cmssw_path = luigi.PathParameter(exists=True)
-    step_name = "miniaod"
+    prod_config_path = luigi.PathParameter(exists=True)
+    step_name = "aodsim"
 
     def create_branch_map(self):
-        return ConfigAODSIM.req(self)
+        aodsim_branch_map = CreateAODSIMConfigTemplate.req(self).get_branch_map()
+        branch_map = {}
+        branch = 0
+        for branch_data in aodsim_branch_map.values():
+            n_events = branch_data["number_of_events"]
+            i_start, i_stop = 0
+            i = 0
+            while i_start < n_events:
+                if i_start < 10000:
+                    i_stop = min(i_start + 2000, n_events)
+                else:
+                    i_stop = min(i_start + 4000, n_events)
+                n_events_job = i_stop - i_start
+                branch_map[branch] = branch_data
+                branch_map["job_index"] = i
+                branch_map[
+                    "job_aodsim_basename"
+                ] = "{aodsim_basename:s}_{index:d}".format(
+                    aodsim_basename=branch_map["aodsim_basename"], index=i
+                )
+                branch_map[
+                    "job_aodsim_config_filename"
+                ] = "{job_aodsim_basename:s}_cfg.py".format(
+                    job_aodsim_basename=branch_map["job_aodsim_basename"]
+                )
+                branch_map["job_number_of_events"] = n_events_job
+                i_start = i_stop
+                i += 1
+                branch += 1
+        return branch_map
 
     def workflow_requires(self):
         return {
-            "ConfigAODSIM": ConfigAODSIM.req(self),
+            "CreateAODSIMConfigTemplate": CreateAODSIMConfigTemplate.req(self),
         }
 
     def requires(self):
         return {
-            "ConfigAODSIM": ConfigAODSIM.req(self),
+            "CreateAODSIMConfigTemplate": CreateAODSIMConfigTemplate.req(self),
         }
 
     def output(self):
         return law.LocalFileTarget(
-            os.path.join(self.prod_config_path, self.branch_data.basename + "_miniaod_cfg.py")
+            os.path.join(
+                self.prod_config_path,
+                self.__class__.__name__,
+                self.branch_data["job_aodsim_config_filename"],
+            )
         )
 
-    def get_root_input_filename(self):
-        return self.ConfigAODSIM.req(self, branch=self.branch).get_root_output_filename()
+    def run(self):
 
-    def get_root_output_filename(self):
-        return self.branch_data.basename + "_miniaod.root"
+        # check if parent directory of output exists
+        _output = self.output()
+        if not _output.parent.exists():
+            _output.parent.touch()
 
+        # load config template
+        _input = self.input()["CreateAODSIMConfigTemplate"]
+        template = _input.load(formatter="text")
 
-class ConfigNANOAOD(ProductionTask, law.LocalWorkflow):
-
-    prod_config_path = luigi.PathParameter()
-    cmssw_path = luigi.PathParameter(exists=True)
-    step_name = "nanoaod"
-
-    def create_branch_map(self):
-        return ConfigMINIAOD.req(self)
-
-    def requires(self):
-        return {
-            "ConfigMINIAOD": ConfigMINIAOD.req(self),
-        }
-
-    def output(self):
-        return law.LocalFileTarget(
-            os.path.join(self.prod_config_path, self.branch_data.basename + "_nanoaod_cfg.py")
+        # replace filenames
+        template = template.replace(
+            self.branch_data["aodsim_basename"], self.branch_data["job_aodsim_basename"]
         )
 
-    def get_root_input_filename(self):
-        return self.ConfigMINIAOD.req(self, branch=self.branch).get_root_output_filename()
+        # replace number of events
+        n_events = self.branch_data["job_number_of_events"]
+        template = template.replace("-n -1", "-n {n:d}".format(n=n_events))
+        template = template.replace(
+            "input = cms.untracked.int32(-1)",
+            "input = cms.untracked.int32({n:d})".format(n=n_events),
+        )
+        template = template.replace("nevts:-1", "nevts:{n:d}".format(n=n_events))
 
-    def get_root_output_filename(self):
-        return self.branch_data.basename + "_nanoaod.root"
+        # add luminosity block modifier
+        template = template.replace(
+            "# Customisation from command line",
+            "# Customisation from command line\n\n"
+            + "process.source.firstLuminosityBlock = cms.untracked.uint32({lumi_block:d})".format(
+                lumi_block=self.branch_data["job_index"] + 1
+            ),
+        )
 
-
-class RunAODSIM(ProductionTask, law.LocalWorkflow):
-
-    step_name = "aodsim"
-
-    def requires(self):
-        return {
-            "ConfigAODSIM": ConfigAODSIM.req(self),
-        }
-
-    def output(self):
-        return law.LocalFileTarget(os.path.join(self.prod_data_path, "aodsim", "sample.root"))
-
-
-class RunMINIAOD(ProductionTask, law.LocalWorkflow):
-
-    step_name = "miniaod"
-
-    def requires(self):
-        return {
-            "ConfigMINIAOD": ConfigMINIAOD.req(self),
-            "RunAODSIM": RunAODSIM.req(self),
-        }
-
-    def output(self):
-        return law.LocalFileTarget(os.path.join(self.prod_data_path, "miniaod", "sample.root"))
-
-
-class RunNANOAOD(ProductionTask, law.LocalWorkflow):
-
-    step_name = "nanoaod"
-
-    def requires(self):
-        return {
-            "ConfigNANOAOD": ConfigNANOAOD.req(self),
-            "RunMINIAOD": RunMINIAOD.req(self),
-        }
-
-    def output(self):
-        return law.LocalFileTarget(os.path.join(self.prod_data_path, "nanoaod", "sample.root"))
+        # write modified configuration to destination
+        _output.dump(template, formatter="text")
