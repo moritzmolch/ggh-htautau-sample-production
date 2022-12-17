@@ -63,10 +63,9 @@ action () {
 
     # add libraries and binaries to path variables
     local python3_version="$( python3 -c "import sys;print('{0.major}.{0.minor}'.format(sys.version_info))" )"
-    prod_add_py "${PROD_BASE_PATH}/usr/local/lib/python${python3_version}/dist-packages"
-    prod_add_py "${PROD_BASE_PATH}/usr/local/lib/python${python3_version}/site-packages"
+    prod_add_py "${PROD_BASE_PATH}/usr/lib/python${python3_version}/site-packages"
     prod_add_py "${PROD_BASE_PATH}"
-    prod_add_bin "${PROD_BASE_PATH}/usr/local/bin"
+    prod_add_bin "${PROD_BASE_PATH}/usr/bin"
 
     # index tasks
     python3 -m law index --verbose || return "$?"

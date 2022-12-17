@@ -28,7 +28,7 @@ class CreateFragment(ProductionTask, law.LocalWorkflow):
                     int(row[2]),
                 )
                 higgs_mass_str = (
-                    str(higgs_mass)
+                    str(int(higgs_mass))
                     if higgs_mass == int(higgs_mass)
                     else str(higgs_mass).replace(".", "p")
                 )
@@ -64,7 +64,7 @@ class CreateFragment(ProductionTask, law.LocalWorkflow):
         dataset = self.branch_data
         with open(self.fragment_template_path, "r") as f:
             fragment_content = f.read()
-        if dataset.has_manual_width:
+        if dataset["higgs_width"] == -1:
             process_parameters_block = (
                 "processParameters = cms.vstring(\n"
                 + "            'HiggsSM:gg2H = on',\n"
@@ -95,7 +95,7 @@ class CreateAODSIMConfigTemplate(ProductionTask, law.LocalWorkflow):
 
     prod_config_path = luigi.PathParameter(exists=True)
     cmssw_path = luigi.PathParameter(exists=True)
-    step_name = "aodsim"
+    step = "aodsim"
 
     cms_driver_beamspot = "Realistic25ns13TeVEarly2018Collision"
     cms_driver_era = "Run2_2018_FastSim"
@@ -158,7 +158,7 @@ class CreateAODSIMConfigTemplate(ProductionTask, law.LocalWorkflow):
         return None
 
     def get_root_output_filename(self):
-        return self.branch_data.basename + "_aodsim.root"
+        return  "{aodsim_basename:s}.root".format(aodsim_basename=self.branch_data["aodsim_basename"])
 
     def build_command(self):
         # base command and input file/fragment
@@ -213,9 +213,9 @@ class CreateAODSIMConfigTemplate(ProductionTask, law.LocalWorkflow):
         arguments.append(("--eventcontent", self.cms_driver_eventcontent))
 
         # premixing and pileup
-        arguments.append(("--procModifiers", self.cms_driver_proc_modifiers))
-        arguments.append(("--datamix", self.cms_driver_datamix))
-        arguments.append(("--pileup_input", self.cms_driver_pileup_input))
+        #arguments.append(("--procModifiers", self.cms_driver_proc_modifiers))
+        #arguments.append(("--datamix", self.cms_driver_datamix))
+        #arguments.append(("--pileup_input", self.cms_driver_pileup_input))
 
         # switches
         if self.cms_driver_use_fast_simulation:
@@ -236,6 +236,7 @@ class CreateAODSIMConfigTemplate(ProductionTask, law.LocalWorkflow):
             _output.parent.touch()
         with tempfile.TemporaryDirectory(dir=_output.parent.path) as tmpdir:
             cmd = self.build_command()
+            print(f"Execute {cmd}")
             ret_code, out, err = law.util.interruptable_popen(
                 cmd,
                 cwd=tmpdir,
