@@ -16,25 +16,39 @@ class CMSDriverTask(law.Task):
 
     cmssw_path = luigi.PathParameter(exists=True)
 
-    cms_driver_era = luigi.Parameter()
-    cms_driver_conditions = luigi.Parameter()
-    cms_driver_beamspot = luigi.Parameter()
+    cms_driver_era = luigi.Parameter(description="Tag for the data-taking period")
+    cms_driver_conditions = luigi.Parameter(
+        description="Tag for the data-taking conditions that affect alignment and calibration"
+    )
+    cms_driver_beamspot = luigi.Parameter(description="Tag for the beamspot scenario")
 
-    cms_driver_step = luigi.Parameter()
-    cms_driver_datatier = luigi.Parameter()
-    cms_driver_eventcontent = luigi.Parameter()
+    cms_driver_step = luigi.Parameter(
+        description="Simulation steps that are performed during one part of the simulation chain"
+    )
+    cms_driver_datatier = luigi.Parameter(description="Data tier of the chain step")
+    cms_driver_eventcontent = luigi.Parameter(
+        description="Format in which the events are stord in the ROOT output file"
+    )
 
-    cms_driver_proc_modifiers = luigi.Parameter(default=law.NO_STR)
-    cms_driver_datamix = luigi.Parameter(default=law.NO_STR)
-    cms_driver_pileup_input = luigi.Parameter(default=law.NO_STR)
+    cms_driver_proc_modifiers = luigi.Parameter(
+        default=law.NO_STR, description="Tag for process modifications, e.g. pileup mixing"
+    )
+    cms_driver_datamix = luigi.Parameter(default=law.NO_STR, description="Type of pileup mixing")
+    cms_driver_pileup_input = luigi.Parameter(default=law.NO_STR, description="Input file for pileup mixing")
 
-    cms_driver_fast = luigi.BoolParameter(default=False)
-    cms_driver_mc = luigi.BoolParameter(default=False)
+    cms_driver_fast = luigi.BoolParameter(
+        default=False, description="Run the CMS Fast Simulation instead of the full detector simulation with GEANT"
+    )
+    cms_driver_mc = luigi.BoolParameter(default=False, description="Declare processing of Monte Carlo data")
 
-    cms_driver_add_monitoring = luigi.BoolParameter(default=False)
-    cms_driver_use_random_service_helper = luigi.BoolParameter(default=False)
+    cms_driver_add_monitoring = luigi.BoolParameter(
+        default=False, description="Activate monitoring tools when running the configuration"
+    )
+    cms_driver_use_random_service_helper = luigi.BoolParameter(
+        default=False, description="Provide random seed to event generators"
+    )
 
-    cms_driver_number_of_events = luigi.IntParameter(default=-1)
+    cms_driver_number_of_events = luigi.IntParameter(default=-1, description="Number of events")
 
     @abstractmethod
     def output(self):
@@ -119,7 +133,7 @@ class CMSDriverTask(law.Task):
             cmd.append("--mc")
 
         # do not execute the simulation while creating the configuration
-        cmd.append(("--no_exec",))
+        cmd.append("--no_exec")
 
         # set number of events
         cmd += ["-n", str(self.cms_driver_number_of_events)]
