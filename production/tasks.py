@@ -2,8 +2,6 @@ import law
 import os
 import csv
 import luigi
-import tempfile
-import subprocess
 
 from production.utils import HTTDataset
 from production.framework import Task, CMSDriverTask
@@ -209,18 +207,12 @@ class SplitAODSIMConfigs(Task, law.LocalWorkflow):
 
     def requires(self):
         return {
-            "CreateAODSIMConfigTemplate": CreateAODSIMConfigTemplate.req(
-                self, branch=self.branch_data.dataset.branch
-            ),
+            "CreateAODSIMConfigTemplate": CreateAODSIMConfigTemplate.req(self, branch=self.branch_data.dataset.branch),
         }
 
     def output(self):
-        return law.LocalFileTarget(
-            os.path.join(
-                self.prod_config_path,
-                self.__class__.__name__,
-                self.branch_data.get_step_config_filename(self.step),
-            )
+        return self.local_target(
+            self.branch_data.get_step_config_filename(self.step)
         )
 
     def run(self):
@@ -233,8 +225,6 @@ class SplitAODSIMConfigs(Task, law.LocalWorkflow):
         # load config template
         _input = self.input()["CreateAODSIMConfigTemplate"]
         template = _input.load(formatter="text")
-
-        print(_input.path, _output.path)
 
         # replace filenames
         template = template.replace(
@@ -256,12 +246,121 @@ class SplitAODSIMConfigs(Task, law.LocalWorkflow):
         template = template.replace("nevts:-1", "nevts:{n:d}".format(n=n_events))
 
         # add luminosity block modifier
+        template += "\n\nprocess.source.firstLuminosityBlock = cms.untracked.uint32(1 + {lumi_block:d})".format(
+                lumi_block=self.branch_data.index
+        ),
+
+        # write modified configuration to destination
+        _output.dump(template, formatter="text")
+
+
+class SplitMINIAODSIMConfigs(Task, law.LocalWorkflow):
+
+    prod_config_path = luigi.PathParameter(exists=True)
+    step = "aodsim"
+
+    def create_branch_map(self):
+        miniaodsim_branch_map = CreateMINIAODSIMConfigTemplate.req(self).get_branch_map()
+        branch_map = {}
+        branch = 0
+        for parent_branch, branch_data in miniaodsim_branch_map.items():
+            htt_files = branch_data.files
+            for htt_file in htt_files:
+                htt_file.branch = branch
+                branch_map[branch] = htt_file
+                branch += 1
+        return branch_map
+
+    def workflow_requires(self):
+        return {
+            "CreateMINIAODSIMConfigTemplate": CreateMINIAODSIMConfigTemplate.req(self),
+        }
+
+    def requires(self):
+        return {
+            "CreateMINIAODSIMConfigTemplate": CreateMINIAODSIMConfigTemplate.req(self, branch=self.branch_data.dataset.branch),
+        }
+
+    def output(self):
+        return self.local_target(
+            self.branch_data.get_step_config_filename("miniaod")
+        )
+
+    def run(self):
+
+        # check if parent directory of output exists
+        _output = self.output()
+        if not _output.parent.exists():
+            _output.parent.touch()
+
+        # load config template
+        _input = self.input()["CreateMINIAODSIMConfigTemplate"]
+        template = _input.load(formatter="text")
+
+        # replace filenames
         template = template.replace(
-            "# Customisation from command line",
-            "# Customisation from command line\n\n"
-            + "process.source.firstLuminosityBlock = cms.untracked.uint32({lumi_block:d})".format(
-                lumi_block=self.branch_data.index + 1
-            ),
+            self.branch_data.dataset.get_step_config_filename(self.step),
+            self.branch_data.get_step_config_filename(self.step),
+        )
+        template = template.replace(
+            self.branch_data.dataset.get_step_root_filename(self.step),
+            self.branch_data.get_step_root_filename(self.step),
+        )
+
+        # write modified configuration to destination
+        _output.dump(template, formatter="text")
+
+
+class SplitNANOAODSIMConfigs(Task, law.LocalWorkflow):
+
+    prod_config_path = luigi.PathParameter(exists=True)
+
+    def create_branch_map(self):
+        nanoaodsim_branch_map = CreateNANOAODSIMConfigTemplate.req(self).get_branch_map()
+        branch_map = {}
+        branch = 0
+        for parent_branch, branch_data in nanoaodsim_branch_map.items():
+            htt_files = branch_data.files
+            for htt_file in htt_files:
+                htt_file.branch = branch
+                branch_map[branch] = htt_file
+                branch += 1
+        return branch_map
+
+    def workflow_requires(self):
+        return {
+            "CreateNANOAODSIMConfigTemplate": CreateNANOAODSIMConfigTemplate.req(self),
+        }
+
+    def requires(self):
+        return {
+            "CreateNANOAODSIMConfigTemplate": CreateNANOAODSIMConfigTemplate.req(self, branch=self.branch_data.dataset.branch),
+        }
+
+    def output(self):
+        return self.local_target(
+            self.branch_data.get_step_config_filename("nanoaod")
+        )
+
+    def run(self):
+
+        # check if parent directory of output exists
+        _output = self.output()
+        if not _output.parent.exists():
+            _output.parent.touch()
+
+        # load config template
+        _input = self.input()["CreateNANOAODSIMConfigTemplate"]
+        template = _input.load(formatter="text")
+
+        # replace filenames
+        template = template.replace(
+            self.branch_data.dataset.get_step_config_filename(self.step),
+            self.branch_data.get_step_config_filename(self.step),
+        )
+        template = template.replace(
+            self.branch_data.dataset.get_step_root_filename(self.step),
+            self.branch_data.get_step_root_filename(self.step),
         )
 
         # write modified configuration to destination
