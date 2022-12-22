@@ -28,8 +28,6 @@ class CMSDriverTask(law.Task):
 
     __metaclass__ = ABCMeta
 
-    cmssw_path = luigi.PathParameter(exists=True)
-
     cms_driver_era = luigi.Parameter(description="Tag for the data-taking period")
     cms_driver_conditions = luigi.Parameter(
         description="Tag for the data-taking conditions that affect alignment and calibration"
@@ -45,10 +43,12 @@ class CMSDriverTask(law.Task):
     )
 
     cms_driver_proc_modifiers = luigi.Parameter(
-        default=law.NO_STR, description="Tag for process modifications, e.g. pileup mixing"
+        default=law.NO_STR, description="Tag for processing modifications, e.g. for premixing or during the miniAOD step"
     )
     cms_driver_datamix = luigi.Parameter(default=law.NO_STR, description="Type of pileup mixing")
     cms_driver_pileup_input = luigi.Parameter(default=law.NO_STR, description="Input file for pileup mixing")
+
+    cms_driver_geometry = luigi.Parameter(default=law.NO_STR, description="Selection of the detector geometry description")
 
     cms_driver_fast = luigi.BoolParameter(
         default=False, description="Run the CMS Fast Simulation instead of the full detector simulation with GEANT"
@@ -61,6 +61,7 @@ class CMSDriverTask(law.Task):
     cms_driver_use_random_service_helper = luigi.BoolParameter(
         default=False, description="Provide random seed to event generators"
     )
+    cms_driver_run_unscheduled = luigi.BoolParameter(default=False, description="Run the production unscheduled")
 
     cms_driver_number_of_events = luigi.IntParameter(default=-1, description="Number of events")
 
@@ -120,33 +121,44 @@ class CMSDriverTask(law.Task):
                 + "RandomNumberServiceHelper(process.RandomNumberGeneratorService);randSvc.populate()",
             ]
 
-        # data-taking conditions
-        cmd += ["--beamspot", self.cms_driver_beamspot]
+        # data-taking conditions (required)
         cmd += ["--era", self.cms_driver_era]
         cmd += ["--conditions", self.cms_driver_conditions]
+        cmd += ["--beamspot", self.cms_driver_beamspot]
 
-        # step and event format definition
+        # step and event format definition (required)
         cmd += ["--step", self.cms_driver_step]
         cmd += ["--datatier", self.cms_driver_datatier]
         cmd += ["--eventcontent", self.cms_driver_eventcontent]
 
-        # premixing and pileup
-        if (
-            self.cms_driver_proc_modifiers != law.NO_STR
-            and self.cms_driver_datamix != law.NO_STR
-            and self.cms_driver_pileup_input != law.NO_STR
-        ):
+        # process modification tag (optional)
+        if self.cms_driver_proc_modifiers != law.NO_STR:
             cmd += ["--procModifiers", self.cms_driver_proc_modifiers]
+
+        # premixing and pileup (optional)
+        if self.cms_driver_datamix != law.NO_STR:
             cmd += ["--datamix", self.cms_driver_datamix]
+        if self.cms_driver_pileup_input != law.NO_STR:
             cmd += ["--pileup_input", self.cms_driver_pileup_input]
 
-        # select whether CMS Fast Simulation should be used for detector simulation and reconstruction
+        # detector geometry (optional)
+        if self.cms_driver_geometry != law.NO_STR:
+            cmd += ["--geometry", self.cms_driver_geometry]
+
+        # fast simulation of the CMS detector (optional)
         if self.cms_driver_fast:
             cmd.append("--fast")
+
+        # generation and processing of Monte Carlo data (optional)
         if self.cms_driver_is_mc_dataset:
             cmd.append("--mc")
 
+        # run unscheduled production
+        if self.cms_driver_run_unscheduled:
+            cmd.append("--runUnscheduled")
+
         # do not execute the simulation while creating the configuration
+        # This flag is always set here as the production should not be started in the configuration task.
         cmd.append("--no_exec")
 
         # set number of events
