@@ -6,10 +6,10 @@ import tempfile
 import subprocess
 
 from production.utils import HTTDataset
-from production.framework import ProductionTask
+from production.framework import Task, CMSDriverTask
 
 
-class CreateFragment(ProductionTask, law.LocalWorkflow):
+class CreateFragment(Task, law.LocalWorkflow):
 
     cmssw_path = luigi.PathParameter(exists=True)
     fragment_template_path = luigi.PathParameter(exists=True)
@@ -79,7 +79,7 @@ class CreateFragment(ProductionTask, law.LocalWorkflow):
         _output.dump(fragment_content, formatter="text")
 
 
-class CreateAODSIMConfigTemplate(ProductionTask, law.LocalWorkflow):
+class CreateAODSIMConfigTemplate(Task, CMSDriverTask, law.LocalWorkflow):
 
     prod_config_path = luigi.PathParameter(exists=True)
     cmssw_path = luigi.PathParameter(exists=True)
@@ -234,7 +234,7 @@ class CreateAODSIMConfigTemplate(ProductionTask, law.LocalWorkflow):
             _output.copy_from_local(os.path.join(tmpdir, python_filename))
 
 
-class SplitAODSIMConfigs(ProductionTask, law.LocalWorkflow):
+class SplitAODSIMConfigs(Task, law.LocalWorkflow):
 
     prod_config_path = luigi.PathParameter(exists=True)
     step = "aodsim"

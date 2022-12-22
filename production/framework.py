@@ -5,9 +5,23 @@ import subprocess
 from abc import ABCMeta, abstractmethod
 
 
-class ProductionTask(law.Task):
+
+
+class Task(law.Task):
+
+    local_data_path = luigi.Parameter()
+    cmssw_path = luigi.Parameter()
+
+
     def __init__(self, *args, **kwargs):
-        super(ProductionTask, self).__init__(*args, **kwargs)
+        super(Task, self).__init__(*args, **kwargs)
+
+    def local_path(self, *path):
+        parts = (self.local_data_path, self.__class__.__name__) + path
+        return os.path.join(*parts)
+
+    def local_target(self, *path):
+        return law.LocalFileTarget(self.local_path(path))
 
 
 class CMSDriverTask(law.Task):
