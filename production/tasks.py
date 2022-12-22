@@ -28,9 +28,7 @@ class CreateFragment(Task, law.LocalWorkflow):
                     float(row[1]),
                     int(row[2]),
                 )
-                branch_map[branch] = HTTDataset(
-                    higgs_mass, higgs_width, number_of_events, branch=branch
-                )
+                branch_map[branch] = HTTDataset(higgs_mass, higgs_width, number_of_events, branch=branch)
                 branch += 1
         return branch_map
 
@@ -73,9 +71,7 @@ class CreateFragment(Task, law.LocalWorkflow):
                 + "            '25:m0 = {0:f}',\n".format(dataset.higgs_mass)
                 + "        ),"
             )
-        fragment_content = fragment_content.replace(
-            "{{ process_parameters_block }}", process_parameters_block
-        )
+        fragment_content = fragment_content.replace("{{ process_parameters_block }}", process_parameters_block)
         _output.dump(fragment_content, formatter="text")
 
 
