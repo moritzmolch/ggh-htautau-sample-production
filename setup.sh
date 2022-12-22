@@ -54,7 +54,7 @@ action () {
     cd "${current_dir}" || return "$?"
 
     # install additional python packages
-    prod_pip_install -r "${PROD_BASE_PATH}/requirements.txt"
+    #prod_pip_install -r "${PROD_BASE_PATH}/requirements.txt"
 
     # law and luigi paths
     export LAW_HOME="${PROD_BASE_PATH}/.law"
