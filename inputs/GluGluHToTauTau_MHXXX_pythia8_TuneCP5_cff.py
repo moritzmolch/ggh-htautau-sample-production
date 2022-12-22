@@ -1,10 +1,10 @@
 # original fragment: https://raw.githubusercontent.com/cms-sw/cmssw/master/Configuration/Generator/python/H125GGgluonfusion_13TeV_TuneCP5_cfi.py
 
- 
+
 import FWCore.ParameterSet.Config as cms
 from Configuration.Generator.Pythia8CommonSettings_cfi import *
 from Configuration.Generator.MCTunes2017.PythiaCP5Settings_cfi import *
- 
+
 
 generator = cms.EDFilter("Pythia8GeneratorFilter",
                          pythiaPylistVerbosity = cms.untracked.int32(1),

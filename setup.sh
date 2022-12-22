@@ -2,7 +2,7 @@
 
 
 action () {
-    # directory of that script and current working directory 
+    # directory of that script and current working directory
     local base_dir="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
     local current_dir="$( pwd )"
 
@@ -33,7 +33,7 @@ action () {
     }
 
     # set up CMSSW
-    export VO_CMS_SW_DIR="/cvmfs/cms.cern.ch" 
+    export VO_CMS_SW_DIR="/cvmfs/cms.cern.ch"
     source "${VO_CMS_SW_DIR}/cmsset_default.sh" || return "$?"
     export CMSSW_VERSION="CMSSW_10_6_29_patch1"
     export CMSSW_BASE_PATH="${PROD_BASE_PATH}/${CMSSW_VERSION}"
