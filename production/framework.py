@@ -4,11 +4,12 @@ import os
 import luigi
 import subprocess
 from abc import ABCMeta, abstractmethod
+from typing import Union
 
 
 law.contrib.load("wlcg")
-law.contrib.load("htcondor")
-law.contrib.load("git")
+#law.contrib.load("htcondor")
+#law.contrib.load("git")
 
 
 class Task(law.Task):
@@ -29,18 +30,17 @@ class Task(law.Task):
         return cls._wlcg_file_systems[wlcg_path]
 
     def remote_path(self, *path):
-        parts = path
-        return os.path.join(*parts)
+        return os.path.join(*path)
 
     def remote_target(self, *path):
         return law.wlcg.WLCGFileTarget(self.remote_path(*path), self.get_wlcg_file_system(self.wlcg_path))
 
     def local_path(self, *path):
-        parts = (self.local_data_path, self.__class__.__name__) + path
+        parts = (self.local_data_path, self.__class__.__name__, ) + path
         return os.path.join(*parts)
 
     def local_target(self, *path):
-        return law.LocalFileTarget(self.local_path(path))
+        return law.LocalFileTarget(self.local_path(*path))
 
 
 class CMSDriverTask(law.Task):
@@ -89,11 +89,11 @@ class CMSDriverTask(law.Task):
         pass
 
     @abstractmethod
-    def cmssw_fragment_path(self) -> str | None:
+    def cmssw_fragment_path(self) -> Union[str, None]:
         pass
 
     @abstractmethod
-    def root_input_filename(self) -> str | None:
+    def root_input_filename(self) -> Union[str, None]:
         pass
 
     @abstractmethod
@@ -120,14 +120,14 @@ class CMSDriverTask(law.Task):
         ]
 
         # set the input of the production step (fragment or ROOT input file)
-        if self.get_relative_fragment_path() is not None:
-            cmd.append(self.get_relative_fragment_path())
-        if self.get_root_input_filename() is not None:
-            cmd += ["--filein", "file:" + self.get_root_input_filename()]
+        if self.cmssw_fragment_path() is not None:
+            cmd.append(self.cmssw_fragment_path())
+        if self.root_input_filename() is not None:
+            cmd += ["--filein", "file:" + self.root_input_filename()]
 
         # set the python filename and the name of the output file
         cmd += ["--python_filename", os.path.basename(self.output().path)]
-        cmd += ["--fileout", "file:" + self.get_root_output_filename()]
+        cmd += ["--fileout", "file:" + self.root_output_filename()]
 
         # add customization flags (monotoring and random seed)
         # customization
@@ -169,7 +169,7 @@ class CMSDriverTask(law.Task):
             cmd.append("--fast")
 
         # generation and processing of Monte Carlo data (optional)
-        if self.cms_driver_is_mc_dataset:
+        if self.cms_driver_mc:
             cmd.append("--mc")
 
         # run unscheduled production
@@ -213,9 +213,10 @@ class CMSDriverTask(law.Task):
 
         # build and execute the configuration generation command
         cmd = self.build_command()
-        self.run_command(cmd, _output.parent.path)
+        self.run_command(cmd, _output)
 
 
+"""
 class HTCondorJobManager(law.contrib.htcondor.HTCondorJobManager):
 
     status_line_cre = re.compile(r"^(\d+\.\d+)" + 4 * r"\s+[^\s]+" + r"\s+([UIRXSCHE<>])\s+.*$")
@@ -225,8 +226,9 @@ class HTCondorJobManager(law.contrib.htcondor.HTCondorJobManager):
     @classmethod
     def get_htcondor_version(cls):
         return (8, 6, 5)
+"""
 
-
+"""
 class HTCondorWorkflow(law.contrib.htcondor.HTCondorWorkflow):
 
     prod_data_path = luigi.PathParameter(exists=True)
@@ -357,3 +359,4 @@ class BundleProductionRepository(law.git.BundleGitRepository, law.tasks.Transfer
             "bundled repository archive, size is {:.2f} {}".format(*law.util.human_bytes(bundle.stat().st_size))
         )
         self.transfer(bundle)
+"""

@@ -75,25 +75,6 @@ class CreateFragment(Task, law.LocalWorkflow):
 
 class CreateAODSIMConfigTemplate(Task, CMSDriverTask, law.LocalWorkflow):
 
-    cms_driver_beamspot = "Realistic26ns13TeVEarly2018Collision"
-    cms_driver_era = "Run2_2018_FastSim"
-    cms_driver_conditions = "106X_upgrade2018_realistic_v16_L1v1"
-
-    cms_driver_step = "GEN,SIM,RECOBEFMIX,DIGI,DATAMIX,L1,DIGI2RAW,L1Reco,RECO"
-    cms_driver_datatier = "AODSIM"
-    cms_driver_eventcontent = "AODSIM"
-
-    cms_driver_proc_modifiers = "premix_stage2"
-    cms_driver_datamix = "PreMix"
-    cms_driver_pileup_input = (
-        "dbs:/Neutrino_E-10_gun/RunIIFall17FSPrePremix-PUFSUL18CP5_106X_upgrade2018_realistic" + "_v16-v1/PREMIX"
-    )
-
-    cms_driver_add_monitoring = True
-    cms_driver_use_random_service_helper = True
-    cms_driver_use_fast_simulation = True
-    cms_driver_is_mc_dataset = True
-
     def create_branch_map(self):
         branch_map = CreateFragment.req(self).get_branch_map()
         return branch_map
@@ -121,27 +102,10 @@ class CreateAODSIMConfigTemplate(Task, CMSDriverTask, law.LocalWorkflow):
         return None
 
     def root_output_filename(self):
-        return self.branch_data.get_step_root_filename(self.step)
+        return self.branch_data.get_step_root_filename("aodsim")
 
 
 class CreateMINIAODSIMConfigTemplate(Task, CMSDriverTask, law.LocalWorkflow):
-
-    cms_driver_beamspot = "Realistic25ns13TeVEarly2018Collision"
-    cms_driver_era = "Run2_2018"
-    cms_driver_conditions = "106X_upgrade2018_realistic_v16_L1v1"
-
-    cms_driver_step = "PAT"
-    cms_driver_datatier = "MINIAODSIM"
-    cms_driver_eventcontent = "MINIAODSIM"
-
-    cms_driver_proc_modifiers = "run2_miniAOD_UL"
-    cms_driver_geometry = "DB:Extended"
-
-    cms_driver_add_monitoring = True
-    cms_driver_use_random_service_helper = True
-    cms_driver_use_fast_simulation = True
-    cms_driver_is_mc_dataset = True
-    cms_driver_run_unscheduled = True
 
     def create_branch_map(self):
         branch_map = CreateFragment.req(self).get_branch_map()
@@ -185,9 +149,6 @@ class CreateNANOAODSIMConfigTemplate(Task, CMSDriverTask, law.LocalWorkflow):
 
 class SplitAODSIMConfigs(Task, law.LocalWorkflow):
 
-    prod_config_path = luigi.PathParameter(exists=True)
-    step = "aodsim"
-
     def create_branch_map(self):
         aodsim_branch_map = CreateAODSIMConfigTemplate.req(self).get_branch_map()
         branch_map = {}
@@ -212,7 +173,7 @@ class SplitAODSIMConfigs(Task, law.LocalWorkflow):
 
     def output(self):
         return self.local_target(
-            self.branch_data.get_step_config_filename(self.step)
+            self.branch_data.get_step_config_filename("aodsim")
         )
 
     def run(self):
@@ -228,12 +189,12 @@ class SplitAODSIMConfigs(Task, law.LocalWorkflow):
 
         # replace filenames
         template = template.replace(
-            self.branch_data.dataset.get_step_config_filename(self.step),
-            self.branch_data.get_step_config_filename(self.step),
+            self.branch_data.dataset.get_step_config_filename("aodsim"),
+            self.branch_data.get_step_config_filename("aodsim"),
         )
         template = template.replace(
-            self.branch_data.dataset.get_step_root_filename(self.step),
-            self.branch_data.get_step_root_filename(self.step),
+            self.branch_data.dataset.get_step_root_filename("aodsim"),
+            self.branch_data.get_step_root_filename("aodsim"),
         )
 
         # replace number of events
@@ -248,16 +209,13 @@ class SplitAODSIMConfigs(Task, law.LocalWorkflow):
         # add luminosity block modifier
         template += "\n\nprocess.source.firstLuminosityBlock = cms.untracked.uint32(1 + {lumi_block:d})".format(
                 lumi_block=self.branch_data.index
-        ),
+        )
 
         # write modified configuration to destination
         _output.dump(template, formatter="text")
 
 
 class SplitMINIAODSIMConfigs(Task, law.LocalWorkflow):
-
-    prod_config_path = luigi.PathParameter(exists=True)
-    step = "aodsim"
 
     def create_branch_map(self):
         miniaodsim_branch_map = CreateMINIAODSIMConfigTemplate.req(self).get_branch_map()
@@ -299,12 +257,12 @@ class SplitMINIAODSIMConfigs(Task, law.LocalWorkflow):
 
         # replace filenames
         template = template.replace(
-            self.branch_data.dataset.get_step_config_filename(self.step),
-            self.branch_data.get_step_config_filename(self.step),
+            self.branch_data.dataset.get_step_config_filename("miniaod"),
+            self.branch_data.get_step_config_filename("miniaod"),
         )
         template = template.replace(
-            self.branch_data.dataset.get_step_root_filename(self.step),
-            self.branch_data.get_step_root_filename(self.step),
+            self.branch_data.dataset.get_step_root_filename("miniaod"),
+            self.branch_data.get_step_root_filename("miniaod"),
         )
 
         # write modified configuration to destination
@@ -312,8 +270,6 @@ class SplitMINIAODSIMConfigs(Task, law.LocalWorkflow):
 
 
 class SplitNANOAODSIMConfigs(Task, law.LocalWorkflow):
-
-    prod_config_path = luigi.PathParameter(exists=True)
 
     def create_branch_map(self):
         nanoaodsim_branch_map = CreateNANOAODSIMConfigTemplate.req(self).get_branch_map()
@@ -355,12 +311,12 @@ class SplitNANOAODSIMConfigs(Task, law.LocalWorkflow):
 
         # replace filenames
         template = template.replace(
-            self.branch_data.dataset.get_step_config_filename(self.step),
-            self.branch_data.get_step_config_filename(self.step),
+            self.branch_data.dataset.get_step_config_filename("nanoaod"),
+            self.branch_data.get_step_config_filename("nanoaod"),
         )
         template = template.replace(
-            self.branch_data.dataset.get_step_root_filename(self.step),
-            self.branch_data.get_step_root_filename(self.step),
+            self.branch_data.dataset.get_step_root_filename("nanoaod"),
+            self.branch_data.get_step_root_filename("nanoaod"),
         )
 
         # write modified configuration to destination
