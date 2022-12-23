@@ -18,7 +18,7 @@ class Task(law.Task):
     local_data_path = luigi.Parameter()
     cmssw_path = luigi.Parameter()
 
-    _wlcg_file_systems: Dict[str, law.wlcg.WLCGFileSystem] = {}
+    _wlcg_file_systems = {}
 
     output_collection_cls = law.SiblingFileCollection
 
@@ -125,7 +125,7 @@ class CMSDriverTask(law.Task):
             return True
         return False
 
-    def build_command(self):
+    def build_command(self, output):
         if not self.has_valid_command_inputs():
             raise RuntimeError(
                 "Command cannot be constructed: Fragment path or root input file have to be defined. The 'or' has "
@@ -144,7 +144,7 @@ class CMSDriverTask(law.Task):
             cmd += ["--filein", self.root_input_filename()]
 
         # set the python filename and the name of the output file
-        cmd += ["--python_filename", os.path.basename(self.output().path)]
+        cmd += ["--python_filename", os.path.basename(output.path)]
         cmd += ["--fileout", self.root_output_filename()]
 
         # add customization flags (monotoring and random seed)
@@ -203,10 +203,12 @@ class CMSDriverTask(law.Task):
 
         return cmd
 
-    def run_command(self, command, output):
+    def run_command(self, output):
+        cmd = self.build_command(output)
+        
         # generate the configuration file
         ret_code, out, err = law.util.interruptable_popen(
-            command,
+            cmd,
             cwd=output.parent.path,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
@@ -215,7 +217,7 @@ class CMSDriverTask(law.Task):
 
         if ret_code != 0:
             raise RuntimeError(
-                "Command {cmd} failed with exit code {ret_code:d}".format(cmd=command, ret_code=ret_code)
+                "Command {cmd} failed with exit code {ret_code:d}".format(cmd=cmd, ret_code=ret_code)
                 + "Output: {out:s}".format(out=out)
                 + "Error: {err:s}".format(err=err)
             )
@@ -230,8 +232,7 @@ class CMSDriverTask(law.Task):
             _output.parent.touch()
 
         # build and execute the configuration generation command
-        cmd = self.build_command()
-        self.run_command(cmd, _output)
+        self.run_command(_output)
 
 
 """

@@ -101,19 +101,18 @@ class ConfigAODSIM(Task, CMSDriverTask, law.LocalWorkflow):
         return reqs
 
     def requires(self):
-        reqs = super(ConfigAODSIM, self).requires()
-        reqs["fragment"] = CreateFragment.req(self, branch=self.branch)
+        reqs = {"fragment": CreateFragment.req(self, branch=self.branch)}
         return reqs
 
     def output(self):
         return self.local_targets([
-            "{basename:s}_aodsim_{index:d}_cfg.py".format(basename=self.branch_data["basename"], index=i)
-            for i in list(self.branch_data["jobs"]).sort()
+            "{basename:s}_aodsim_{index:d}_cfg.py".format(basename=self.branch_data["name"], index=i)
+            for i in sorted(list(self.branch_data["jobs"]))
         ])
 
     def cmssw_fragment_path(self):
         fragment_path = self.input()["fragment"].path
-        return os.path.relpath(fragment_path, start=self.cmssw_path)
+        return os.path.relpath(fragment_path, start=os.path.join(self.cmssw_path, "src"))
 
     def root_input_filename(self):
         return None
@@ -129,15 +128,14 @@ class ConfigAODSIM(Task, CMSDriverTask, law.LocalWorkflow):
             _output.parent.touch()
 
         # create the template config
-        tmp_config = law.LocalFileTarget(is_tmp=True)
-        cmd = self.build_command()
-        self.run_command(cmd, tmp_config)
+        tmp_config = law.LocalFileTarget(_output.path + ".tpl")
+        self.run_command(tmp_config)
 
         # use template config to create config files for jobs and replace placeholders for filenames and number of
         # events
         config = tmp_config.load(formatter="text")
         tmp_config_filename = os.path.basename(tmp_config.path)
-        for i in list(self.branch_data["jobs"]).sort():
+        for i in sorted(list(self.branch_data["jobs"])):
             job_config = config
             _output = self.output()[i]
             job_number_of_events = self.branch_data["jobs"][i]
@@ -148,7 +146,7 @@ class ConfigAODSIM(Task, CMSDriverTask, law.LocalWorkflow):
 
             # replace the name of the ROOT output file
             root_output_filename = "{basename:s}_aodsim_{index:d}.root".format(
-                basename=self.branch_data["basename"], index=i
+                basename=self.branch_data["name"], index=i
             )
             job_config = job_config.replace("{{ root_output_filename }}", root_output_filename)
 
@@ -180,14 +178,13 @@ class ConfigMINIAODSIM(Task, CMSDriverTask, law.LocalWorkflow):
         return reqs
 
     def requires(self):
-        reqs = super(ConfigAODSIM, self).requires()
-        reqs["config_aodsim"] = ConfigAODSIM.req(self, branch=self.branch)
+        reqs = {"config_aodsim": ConfigAODSIM.req(self, branch=self.branch)}
         return reqs
 
     def output(self):
         return self.local_targets([
-            "{basename:s}_miniaod_{index:d}_cfg.py".format(basename=self.branch_data["basename"], index=i)
-            for i in list(self.branch_data["jobs"]).sort()
+            "{basename:s}_miniaod_{index:d}_cfg.py".format(basename=self.branch_data["name"], index=i)
+            for i in sorted(list(self.branch_data["jobs"]))
         ])
 
     def cmssw_fragment_path(self):
@@ -207,15 +204,14 @@ class ConfigMINIAODSIM(Task, CMSDriverTask, law.LocalWorkflow):
             _output.parent.touch()
 
         # create the template config
-        tmp_config = law.LocalFileTarget(is_tmp=True)
-        cmd = self.build_command()
-        self.run_command(cmd, tmp_config)
+        tmp_config = law.LocalFileTarget(path=_output.path + ".tpl")
+        self.run_command(tmp_config)
 
         # use template config to create config files for jobs and replace placeholders for filenames and number of
         # events
         config = tmp_config.load(formatter="text")
         tmp_config_filename = os.path.basename(tmp_config.path)
-        for i in list(self.branch_data["jobs"]).sort():
+        for i in sorted(list(self.branch_data["jobs"])):
             job_config = config
             _output = self.output()[i]
 
@@ -225,13 +221,13 @@ class ConfigMINIAODSIM(Task, CMSDriverTask, law.LocalWorkflow):
 
             # replace the name of the ROOT input file
             root_input_filename = "{basename:s}_aodsim_{index:d}.root".format(
-                basename=self.branch_data["basename"], index=i
+                basename=self.branch_data["name"], index=i
             )
             job_config = job_config.replace("{{ root_input_filename }}", root_input_filename)
 
             # replace the name of the ROOT output file
             root_output_filename = "{basename:s}_miniaod_{index:d}.root".format(
-                basename=self.branch_data["basename"], index=i
+                basename=self.branch_data["name"], index=i
             )
             job_config = job_config.replace("{{ root_output_filename }}", root_output_filename)
 
@@ -250,14 +246,13 @@ class ConfigNANOAODSIM(Task, CMSDriverTask, law.LocalWorkflow):
         return reqs
 
     def requires(self):
-        reqs = super(ConfigMINIAODSIM, self).requires()
-        reqs["config_miniaodsim"] = ConfigMINIAODSIM.req(self, branch=self.branch)
+        reqs = {"config_miniaodsim": ConfigMINIAODSIM.req(self, branch=self.branch)}
         return reqs
 
     def output(self):
         return self.local_targets([
-            "{basename:s}_nanoaod_{index:d}_cfg.py".format(basename=self.branch_data["basename"], index=i)
-            for i in list(self.branch_data["jobs"]).sort()
+            "{basename:s}_nanoaod_{index:d}_cfg.py".format(basename=self.branch_data["name"], index=i)
+            for i in sorted(list(self.branch_data["jobs"]))
         ])
 
     def cmssw_fragment_path(self):
@@ -277,15 +272,14 @@ class ConfigNANOAODSIM(Task, CMSDriverTask, law.LocalWorkflow):
             _output.parent.touch()
 
         # create the template config
-        tmp_config = law.LocalFileTarget(is_tmp=True)
-        cmd = self.build_command()
-        self.run_command(cmd, tmp_config)
+        tmp_config = law.LocalFileTarget(path=_output.path + ".tpl")
+        self.run_command(tmp_config)
 
         # use template config to create config files for jobs and replace placeholders for filenames and number of
         # events
         config = tmp_config.load(formatter="text")
         tmp_config_filename = os.path.basename(tmp_config.path)
-        for i in list(self.branch_data["jobs"]).sort():
+        for i in sorted(list(self.branch_data["jobs"])):
             job_config = config
             _output = self.output()[i]
 
@@ -295,13 +289,13 @@ class ConfigNANOAODSIM(Task, CMSDriverTask, law.LocalWorkflow):
 
             # replace the name of the ROOT input file
             root_input_filename = "{basename:s}_miniaod_{index:d}.root".format(
-                basename=self.branch_data["basename"], index=i
+                basename=self.branch_data["name"], index=i
             )
             job_config = job_config.replace("{{ root_input_filename }}", root_input_filename)
 
             # replace the name of the ROOT output file
             root_output_filename = "{basename:s}_nanoaod_{index:d}.root".format(
-                basename=self.branch_data["basename"], index=i
+                basename=self.branch_data["name"], index=i
             )
             job_config = job_config.replace("{{ root_output_filename }}", root_output_filename)
 
