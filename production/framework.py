@@ -18,7 +18,9 @@ class Task(law.Task):
     local_data_path = luigi.Parameter()
     cmssw_path = luigi.Parameter()
 
-    _wlcg_file_systems = {}
+    _wlcg_file_systems: Dict[str, law.wlcg.WLCGFileSystem] = {}
+
+    output_collection_cls = law.SiblingFileCollection
 
     def __init__(self, *args, **kwargs):
         super(Task, self).__init__(*args, **kwargs)
@@ -32,15 +34,27 @@ class Task(law.Task):
     def remote_path(self, *path):
         return os.path.join(*path)
 
-    def remote_target(self, *path):
+    def remote_target(self, path):
         return law.wlcg.WLCGFileTarget(self.remote_path(*path), self.get_wlcg_file_system(self.wlcg_path))
+
+    def remote_targets(self, paths):
+        targets = []
+        for path in paths:
+            targets.append(law.WLCGFileTarget(self.remote_path(path), self.get_wlcg_file_system(self.wlcg_path)))
+        return targets
 
     def local_path(self, *path):
         parts = (self.local_data_path, self.__class__.__name__, ) + path
         return os.path.join(*parts)
 
-    def local_target(self, *path):
+    def local_target(self, path):
         return law.LocalFileTarget(self.local_path(*path))
+
+    def local_targets(self, paths):
+        targets = []
+        for path in paths:
+            targets.append(law.LocalFileTarget(self.local_path(path)))
+        return targets
 
 
 class CMSDriverTask(law.Task):
@@ -62,12 +76,16 @@ class CMSDriverTask(law.Task):
     )
 
     cms_driver_proc_modifiers = luigi.Parameter(
-        default=law.NO_STR, description="Tag for processing modifications, e.g. for premixing or during the miniAOD step"
+        default=law.NO_STR,
+        description="Tag for processing modifications, e.g. for premixing or during the miniAOD step"
     )
     cms_driver_datamix = luigi.Parameter(default=law.NO_STR, description="Type of pileup mixing")
     cms_driver_pileup_input = luigi.Parameter(default=law.NO_STR, description="Input file for pileup mixing")
 
-    cms_driver_geometry = luigi.Parameter(default=law.NO_STR, description="Selection of the detector geometry description")
+    cms_driver_geometry = luigi.Parameter(
+        default=law.NO_STR,
+        description="Selection of the detector geometry description"
+    )
 
     cms_driver_fast = luigi.BoolParameter(
         default=False, description="Run the CMS Fast Simulation instead of the full detector simulation with GEANT"
@@ -123,11 +141,11 @@ class CMSDriverTask(law.Task):
         if self.cmssw_fragment_path() is not None:
             cmd.append(self.cmssw_fragment_path())
         if self.root_input_filename() is not None:
-            cmd += ["--filein", "file:" + self.root_input_filename()]
+            cmd += ["--filein", self.root_input_filename()]
 
         # set the python filename and the name of the output file
         cmd += ["--python_filename", os.path.basename(self.output().path)]
-        cmd += ["--fileout", "file:" + self.root_output_filename()]
+        cmd += ["--fileout", self.root_output_filename()]
 
         # add customization flags (monotoring and random seed)
         # customization
