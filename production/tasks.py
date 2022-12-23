@@ -3,7 +3,6 @@ import os
 import csv
 import luigi
 
-from production.utils import HTTDataset
 from production.framework import Task, CMSDriverTask
 
 
