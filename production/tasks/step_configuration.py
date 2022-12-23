@@ -1,15 +1,14 @@
 import law
 import os
-import csv
-import luigi
 
-from production.framework import Task, CMSDriverTask
+from production.tasks import FragmentGeneration
+from production.framework import CMSDriverTask, Task
 
 
-class ConfigAODSIM(Task, CMSDriverTask, law.LocalWorkflow):
+class AODSIMConfiguration(Task, CMSDriverTask, law.LocalWorkflow):
 
     def create_branch_map(self):
-        branch_map = CreateFragment.req(self).get_branch_map()
+        branch_map = FragmentGeneration.req(self).get_branch_map()
         for branch, branch_data in branch_map.items():
             higgs_mass = branch_data["higgs_mass"]
             number_of_events = branch_data["number_of_events"]
@@ -26,12 +25,11 @@ class ConfigAODSIM(Task, CMSDriverTask, law.LocalWorkflow):
         return branch_map
 
     def workflow_requires(self):
-        reqs = super(ConfigAODSIM, self).workflow_requires()
-        reqs["fragment"] = CreateFragment.req(self, branches=self.branches)
+        reqs = {"fragment": FragmentGeneration.req(self, branches=self.branches)}
         return reqs
 
     def requires(self):
-        reqs = {"fragment": CreateFragment.req(self, branch=self.branch)}
+        reqs = {"fragment": FragmentGeneration.req(self, branch=self.branch)}
         return reqs
 
     def output(self):
@@ -97,13 +95,17 @@ class ConfigAODSIM(Task, CMSDriverTask, law.LocalWorkflow):
             _output.dump(job_config, formatter="text")
 
 
-class ConfigMINIAODSIM(Task, CMSDriverTask, law.LocalWorkflow):
+class MINIAODSIMConfiguration(Task, CMSDriverTask, law.LocalWorkflow):
 
     def create_branch_map(self):
-        return ConfigAODSIM.req(self).get_branch_map()
+        return AODSIMConfiguration.req(self).get_branch_map()
+
+    def workflow_requires(self):
+        reqs = {"config_aodsim": AODSIMConfiguration.req(self, branches=self.branches)}
+        return reqs
 
     def requires(self):
-        reqs = {"config_aodsim": ConfigAODSIM.req(self, branch=self.branch)}
+        reqs = {"config_aodsim": AODSIMConfiguration.req(self, branch=self.branch)}
         return reqs
 
     def output(self):
@@ -160,13 +162,17 @@ class ConfigMINIAODSIM(Task, CMSDriverTask, law.LocalWorkflow):
             _output.dump(job_config, formatter="text")
 
 
-class ConfigNANOAODSIM(Task, CMSDriverTask, law.LocalWorkflow):
+class NANOAODSIMConfiguration(Task, CMSDriverTask, law.LocalWorkflow):
 
     def create_branch_map(self):
-        return ConfigMINIAODSIM.req(self).get_branch_map()
+        return MINIAODSIMConfiguration.req(self).get_branch_map()
+
+    def workflow_requires(self):
+        reqs = {"config_miniaodsim": MINIAODSIMConfiguration.req(self, branches=self.branches)}
+        return reqs
 
     def requires(self):
-        reqs = {"config_miniaodsim": ConfigMINIAODSIM.req(self, branch=self.branch)}
+        reqs = {"config_miniaodsim": MINIAODSIMConfiguration.req(self, branch=self.branch)}
         return reqs
 
     def output(self):
