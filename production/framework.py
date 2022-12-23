@@ -4,12 +4,14 @@ import os
 import luigi
 import subprocess
 from abc import ABCMeta, abstractmethod
-from typing import Union
+from typing import Dict, Union
 
 
 law.contrib.load("wlcg")
-#law.contrib.load("htcondor")
-#law.contrib.load("git")
+law.contrib.load("htcondor")
+law.contrib.load("git")
+law.contrib.load("cms")
+law.contrib.load("tasks")
 
 
 class Task(law.Task):
@@ -235,23 +237,18 @@ class CMSDriverTask(law.Task):
         self.run_command(_output)
 
 
-"""
-class HTCondorJobManager(law.contrib.htcondor.HTCondorJobManager):
+class HTCondorJobManager(law.htcondor.HTCondorJobManager):
 
     status_line_cre = re.compile(r"^(\d+\.\d+)" + 4 * r"\s+[^\s]+" + r"\s+([UIRXSCHE<>])\s+.*$")
 
-    bootstrap_file = law.PathParameter(exists=True)
+    bootstrap_file = luigi.PathParameter(exists=True)
 
     @classmethod
     def get_htcondor_version(cls):
         return (8, 6, 5)
-"""
 
-"""
-class HTCondorWorkflow(law.contrib.htcondor.HTCondorWorkflow):
 
-    prod_data_path = luigi.PathParameter(exists=True)
-    bootstrap_file = luigi.PathParameter(exists=True)
+class HTCondorWorkflow(Task, law.htcondor.HTCondorWorkflow):
 
     htcondor_universe = luigi.Parameter()
     htcondor_docker_image = luigi.Parameter()
@@ -269,7 +266,7 @@ class HTCondorWorkflow(law.contrib.htcondor.HTCondorWorkflow):
     htcondor_x509userproxy = law.wlcg.get_voms_proxy_file()
 
     def htcondor_workflow_requires(self):
-        reqs = HTCondorWorkflow.htcondor_workflow_requires(self)
+        reqs = law.htcondor.HTCondorWorkflow.htcondor_workflow_requires(self)
         reqs["repo"] = BundleProductionRepository.req(self, replicas=3)
         reqs["cmssw"] = BundleCMSSW.req(self, replicas=3)
         return reqs
@@ -312,7 +309,7 @@ class HTCondorWorkflow(law.contrib.htcondor.HTCondorWorkflow):
 
 class BundleCMSSW(law.cms.BundleCMSSW, law.tasks.TransferLocalFile):
 
-    prod_bundle_path = law.PathParameter(exists=True)
+    prod_bundle_path = luigi.PathParameter(exists=True)
     replicas = luigi.Parameter()
 
     task_namespace = None
@@ -346,11 +343,11 @@ class BundleCMSSW(law.cms.BundleCMSSW, law.tasks.TransferLocalFile):
         self.transfer(bundle)
 
 
-class BundleProductionRepository(law.git.BundleGitRepository, law.tasks.TransferLocalFile):
-
-    prod_bundle_path = law.PathParameter(exists=True)
+class BundleProductionRepository(Task, law.git.BundleGitRepository, law.tasks.TransferLocalFile):
 
     task_namespace = None
+
+    replicas = 3
 
     exclude_files = [".law", ".mypy", "config", "data", "venv", "*.pyc"]
 
@@ -358,10 +355,10 @@ class BundleProductionRepository(law.git.BundleGitRepository, law.tasks.Transfer
         return os.environ["PROD_BASE_PATH"]
 
     def single_output(self):
-        filename = "{repo_basename:s}-{checksum:s}.tar.gz".format(
+        filename = "{repo_basename:s}-{checksum:s}.tgz".format(
             repo_basename=os.path.basename(self.get_repo_path()), checksum=self.checksum
         )
-        return self.LocalFileTarget(os.path.join(self.prod_bundle_path, filename))
+        return self.local_target(filename)
 
     def get_file_pattern(self):
         path = os.path.expandvars(os.path.expanduser(self.single_output().path))
@@ -378,4 +375,3 @@ class BundleProductionRepository(law.git.BundleGitRepository, law.tasks.Transfer
             "bundled repository archive, size is {:.2f} {}".format(*law.util.human_bytes(bundle.stat().st_size))
         )
         self.transfer(bundle)
-"""
