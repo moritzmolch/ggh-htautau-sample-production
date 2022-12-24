@@ -1,7 +1,7 @@
 import law
 import os
 
-from production.tasks import FragmentGeneration
+from production.tasks.fragment_generation import FragmentGeneration
 from production.framework import CMSDriverTask, Task
 
 
