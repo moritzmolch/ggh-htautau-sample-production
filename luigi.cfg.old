@@ -1,0 +1,73 @@
+[DEFAULT]
+
+#wlcg_path = srm://cmssrm-kit.gridka.de:8443/srm/managerv2?SFN=/pnfs/gridka.de/cms/disk-only/store/user/mmolch/mc_private/ggh_tautau_fastsim
+local_data_path = ${PROD_BASE}/data
+cmssw_path = ${PROD_BASE}/CMSSW_10_6_29_patch1
+
+
+[FragmentGeneration]
+
+fragment_template_path = ${PROD_BASE}/inputs/GluGluHToTauTau_MHXXX_pythia8_TuneCP5_cff.py
+mass_grid_definition_path = ${PROD_BASE}/inputs/mass_grid_definition.txt
+
+
+[AODSIMConfiguration]
+
+cms_driver_beamspot = Realistic25ns13TeVEarly2018Collision
+cms_driver_era = Run2_2018_FastSim
+cms_driver_conditions = 106X_upgrade2018_realistic_v16_L1v1
+
+cms_driver_step = GEN,SIM,RECOBEFMIX,DIGI,DATAMIX,L1,DIGI2RAW,L1Reco,RECO
+cms_driver_datatier = AODSIM
+cms_driver_eventcontent = AODSIM
+
+cms_driver_proc_modifiers = premix_stage2
+cms_driver_datamix = PreMix
+cms_driver_pileup_input = dbs:/Neutrino_E-10_gun/RunIIFall17FSPrePremix-PUFSUL18CP5_106X_upgrade2018_realistic_v16-v1/PREMIX
+
+cms_driver_add_monitoring = True
+cms_driver_use_random_service_helper = True
+
+cms_driver_fast = True
+cms_driver_mc = True
+
+
+[MINIAODSIMConfiguration]
+
+cms_driver_beamspot = Realistic25ns13TeVEarly2018Collision
+cms_driver_era = Run2_2018
+cms_driver_conditions = 106X_upgrade2018_realistic_v16_L1v1
+
+cms_driver_step = PAT
+cms_driver_datatier = MINIAODSIM
+cms_driver_eventcontent = MINIAODSIM
+
+cms_driver_proc_modifiers = run2_miniAOD_UL
+cms_driver_geometry = DB:Extended
+
+cms_driver_add_monitoring = True
+cms_driver_use_random_service_helper = True
+
+cms_driver_fast = True
+cms_driver_mc = True
+cms_driver_run_unscheduled = True
+
+
+[NANOAODSIMConfiguration]
+
+cms_driver_beamspot = Realistic25ns13TeVEarly2018Collision
+cms_driver_era = Run2_2018,run2_nanoAOD_106Xv2
+cms_driver_conditions = 106X_upgrade2018_realistic_v16_L1v1
+
+cms_driver_step = NANO
+cms_driver_datatier = NANOAODSIM
+cms_driver_eventcontent = NANOAODSIM
+
+cms_driver_add_monitoring = True
+cms_driver_use_random_service_helper = True
+
+cms_driver_fast = True
+cms_driver_mc = True
+
+[AODSIMProduction]
+

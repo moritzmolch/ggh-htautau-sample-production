@@ -169,5 +169,8 @@ usr/
 config/
 data/
 
+# software stack
+software/
+
 # CMSSW release
 CMSSW_*
