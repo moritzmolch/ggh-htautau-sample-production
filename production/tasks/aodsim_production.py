@@ -11,8 +11,9 @@ from production.tasks.base import BaseTask, CMSDriverTask
 
 class FragmentGeneration(BaseTask):
 
-    cmssw_path = os.path.expandvars("${PROD_BASE}/software/cmssw/CMSSW_10_6_29_patch1")
-    fragment_template = os.path.expandvars("${PROD_BASE}/inputs/GluGluHToTauTau_MHXXX_pythia8_TuneCP5_cff.py")
+    cmssw_path = luigi.PathParameter(exists=True)
+    fragment_template_path = luigi.PathParameter(exists=True)
+
     higgs_mass = luigi.FloatParameter()
 
     def local_path(self, *path):
