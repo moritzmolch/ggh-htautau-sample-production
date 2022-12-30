@@ -2,10 +2,9 @@
 
 
 setup_cmssw () {
-    local shell_is_zsh this_file this_dir orig_pwd
+    local shell_is_zsh this_file orig_pwd
     shell_is_zsh="$( [[ -z "${ZSH_VERSION}" ]] && echo "false" || echo "true" )"
     this_file="$( [[ "${shell_is_zsh}" == "true" ]] && echo "${(%):-%x}" || echo "${BASH_SOURCE[0]:-${0}}" )"
-    this_dir="$( cd "$( dirname "${this_file}" )" && pwd )"
     orig_pwd="$( pwd )"
 
     # check environment variables
@@ -54,9 +53,9 @@ setup_cmssw () {
         eval "$( scramv1 runtime -sh )" || return "$?"
         scram build || return "$?"
         cd "${install_base}" || return "$?"
-        touch "${install_flag_file}"
+        touch "${install_flag_file}" || return "$?"
         echo "$( date +%s )" >> "${install_flag_file}"
-        cd "${orig_work_dir}"
+        cd "${orig_pwd}" || return "$?"
 
         echo "finished installation of ${PROD_CMSSW_VERSION} successfully"
     fi
