@@ -20,7 +20,9 @@ class BaseTask(law.Task):
         return target_class(self.local_path(*path))
 
 
-class CMSDriverTask(law.Task):
+class CMSDriverTask(law.SandboxTask):
+
+    sandbox = "bash::${PROD_BASE}/sandboxes/cmssw_default.sh"
 
     # cms_driver_python_filename = luigi.Parameter(
     #    description="name of the python configuration file",
@@ -184,10 +186,11 @@ class CMSDriverTask(law.Task):
         return cmd
 
     def run_command(self, command, output):
+        self.logger.debug(f"sandbox environment: {self.env}")
 
         # generate the configuration file
         ret_code, out, err = law.util.interruptable_popen(
-            command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, env=os.environ, cwd=output.dirname
+            command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, env=self.env, cwd=output.dirname
         )
         if ret_code != 0:
             raise RuntimeError(

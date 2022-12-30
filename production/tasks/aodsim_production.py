@@ -48,18 +48,16 @@ class FragmentGeneration(BaseTask):
 
         # write the fragment content to the output target
         _output.dump(content, formatter="text")
-        self.logger.info("successfully saved output to {output:s}".format(_output.path))
+        self.logger.info("successfully saved output to {output:s}".format(output=_output.path))
 
 
-class AODSIMConfigurationTemplate(BaseTask, CMSDriverTask, law.SandboxTask):
+class AODSIMConfigurationTemplate(BaseTask, CMSDriverTask):
 
     higgs_mass = luigi.FloatParameter()
     step_name = "aodsim"
 
     cms_driver_filein = law.NO_STR
     cms_driver_fileout = "{{ cms_driver_fileout }}"
-
-    sandbox = "bash::${PROD_BASE}/sandboxes/cmssw_default.sh"
 
     def requires(self):
         reqs = {}
@@ -100,7 +98,6 @@ class AODSIMConfigurationTemplate(BaseTask, CMSDriverTask, law.SandboxTask):
         cmd = self.build_command(python_filename=tmp_python_filename)
         self.logger.info("running command {cmd:s}".format(cmd=law.util.quote_cmd(cmd)))
         self.run_command(cmd, tmp_config)
-        tmp_config.dump("This is a test file", formatter="text")
 
         # load configuration content in order to inject some template placeholders
         with tmp_config.open(mode="r") as f:
@@ -118,7 +115,7 @@ class AODSIMConfigurationTemplate(BaseTask, CMSDriverTask, law.SandboxTask):
 
         # write the config to the output target
         _output.dump(content, formatter="text")
-        self.logger.info("successfully saved output to {output:s}".format(_output.path))
+        self.logger.info("successfully saved output to {output:s}".format(output=_output.path))
 
 
 class AODSIMConfiguration(BaseTask):
