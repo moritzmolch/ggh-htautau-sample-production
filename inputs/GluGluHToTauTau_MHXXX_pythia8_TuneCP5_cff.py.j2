@@ -1,4 +1,9 @@
-# original fragment: https://raw.githubusercontent.com/cms-sw/cmssw/master/Configuration/Generator/python/H125GGgluonfusion_13TeV_TuneCP5_cfi.py
+# original fragment https://github.com/cms-sw/cmssw/blob/master/Configuration/Generator/python/GGToHtautau_13TeV_pythia8_cff.py
+# modifications:
+# - Tune CP5 instead of CUEP8M1
+# - mass of the Higgs boson
+# - onIfMatch is used instead of onIfAny (final state has to be exactly 15 -15)
+# - minimal mass reduced to 25.0
 
 
 import FWCore.ParameterSet.Config as cms
@@ -19,12 +24,12 @@ generator = cms.EDFilter("Pythia8GeneratorFilter",
         pythia8CommonSettingsBlock,
         pythia8CP5SettingsBlock,
         processParameters = cms.vstring(
-                            'HiggsSM:gg2H = on',
-                            '25:onMode = off',
-                            '25:onIfMatch = 15 -15',
-                            '25:m0 = {{ higgs_mass }}',
-                            '25:mMin = 25.0',
-        ),
+            'HiggsSM:gg2H = on',
+            '25:onMode = off',
+            '25:onIfMatch = 15 -15',
+            '25:m0 = {{ higgs_mass }}',
+            '25:mMin = 25.0',
+        )
         parameterSets = cms.vstring('pythia8CommonSettings',
                                     'pythia8CP5Settings',
                                     'processParameters',
