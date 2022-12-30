@@ -8,6 +8,7 @@ import re
 import subprocess
 
 from production.tasks.base import BaseTask, CMSDriverTask
+from production.util import interruptable_and_readable_popen
 
 
 class FragmentGeneration(BaseTask):
@@ -71,12 +72,13 @@ class CompileCMSSWWithFragments(BaseTask, law.SandboxTask):
         cmd = ["scramv1", "build"]
         self.logger.info("Run command {cmd:s}".format(cmd=law.util.quote_cmd(cmd)))
         ret_code, out, err = law.util.interruptable_popen(
-            cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, cwd=os.path.join(self.cmssw_path, "src"), env=self.env)
+            cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, cwd=os.path.join(self.cmssw_path, "src"), env=self.env
+        )
         if ret_code != 0:
             raise RuntimeError(
                 "Command {cmd} failed with exit code {ret_code:d}".format(cmd=cmd, ret_code=ret_code)
-                + "Output: {out:s}".format(out=out)
-                + "Error: {err:s}".format(err=err)
+                + "\nOutput: {out:s}".format(out=out)
+                + "\nError: {err:s}".format(err=err)
             )
         self.logger.info("Successfully compiled CMSSW release {cmssw_path:s}".format(cmssw_path=self.cmssw_path))
 
@@ -206,7 +208,7 @@ class AODSIMProduction(BaseTask, law.SandboxTask, law.LocalWorkflow):
                     {
                         "higgs_mass": higgs_mass,
                         "job_index": job_index,
-                        "number_of_events": 10, # 2000,
+                        "number_of_events": 10,  # 2000,
                     }
                 )
         for higgs_mass in range(250, 805, 5):
@@ -215,7 +217,7 @@ class AODSIMProduction(BaseTask, law.SandboxTask, law.LocalWorkflow):
                     {
                         "higgs_mass": higgs_mass,
                         "job_index": job_index,
-                        "number_of_events": 10, # 4000,
+                        "number_of_events": 10,  # 4000,
                     }
                 )
         return {k: v for k, v in enumerate(branch_map)}
@@ -265,14 +267,16 @@ class AODSIMProduction(BaseTask, law.SandboxTask, law.LocalWorkflow):
         # run the production
         cmd = ["cmsRun", tmp_config.basename]
         self.logger.info("Run command {cmd:s}".format(cmd=law.util.quote_cmd(cmd)))
-        ret_code, out, err = law.util.interruptable_popen(
+        ret_code, out, err, lines = law.util.interruptable_and_readable_popen(
             cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, cwd=tmp_config.parent, env=os.environ
         )
+        for line in lines:
+            self.logger.info(line)
         if ret_code != 0:
             raise RuntimeError(
                 "Command {cmd} failed with exit code {ret_code:d}".format(cmd=cmd, ret_code=ret_code)
-                + "Output: {out:s}".format(out=out)
-                + "Error: {err:s}".format(err=err)
+                + "\nOutput: {out:s}".format(out=out)
+                + "\nError: {err:s}".format(err=err)
             )
         elif not tmp_output.exists():
             raise RuntimeError("Output file {output:s} does not exist".format(output=tmp_output.path))
@@ -280,4 +284,3 @@ class AODSIMProduction(BaseTask, law.SandboxTask, law.LocalWorkflow):
         # write produced dataset to the output target
         _output.copy_from_local(tmp_output)
         self.logger.info("Successfully produced {output:s}".format(output=_output.path))
-
