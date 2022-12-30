@@ -51,6 +51,36 @@ class FragmentGeneration(BaseTask):
         self.logger.info("successfully saved output to {output:s}".format(output=_output.path))
 
 
+class CompileCMSSWWithFragments(BaseTask, law.SandboxTask):
+
+    cmssw_path = luigi.Parameter()
+
+    sandbox = "bash::${PROD_BASE}/sandboxes/cmssw_default.sh"
+
+    def requires(self):
+        reqs = []
+        for higgs_mass in range(50, 250, 1):
+            reqs.append(FragmentGeneration.req(self, higgs_mass=higgs_mass, cmssw_path=self.cmssw_path))
+        for higgs_mass in range(250, 805, 5):
+            reqs.append(FragmentGeneration.req(self, higgs_mass=higgs_mass, cmssw_path=self.cmssw_path))
+        return reqs
+
+    def run(self):
+        self.logger.info("Compiling CMSSW release {cmssw_path:s} with fragments".format(cmssw_path=self.cmssw_path))
+        # compile CMSSW in the src directory of the CMSSW directory
+        cmd = ["scramv1", "build"]
+        self.logger.info("Run command {cmd:s}".format(cmd=law.util.quote_cmd(cmd)))
+        ret_code, out, err = law.util.interruptable_popen(
+            cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, cwd=os.path.join(self.cmssw_path, "src"), env=self.env)
+        if ret_code != 0:
+            raise RuntimeError(
+                "Command {cmd} failed with exit code {ret_code:d}".format(cmd=cmd, ret_code=ret_code)
+                + "Output: {out:s}".format(out=out)
+                + "Error: {err:s}".format(err=err)
+            )
+        self.logger.info("Successfully compiled CMSSW release {cmssw_path:s}".format(cmssw_path=self.cmssw_path))
+
+
 class AODSIMConfigurationTemplate(BaseTask, CMSDriverTask):
 
     higgs_mass = luigi.FloatParameter()
@@ -162,9 +192,11 @@ class AODSIMConfiguration(BaseTask):
         _output.dump(content, formatter="text")
 
 
-class AODSIMProduction(BaseTask, law.LocalWorkflow):
+class AODSIMProduction(BaseTask, law.SandboxTask, law.LocalWorkflow):
 
     step_name = "aodsim"
+
+    sandbox = "bash::${PROD_BASE}/sandboxes/cmssw_default.sh"
 
     def create_branch_map(self):
         branch_map = []
@@ -174,7 +206,7 @@ class AODSIMProduction(BaseTask, law.LocalWorkflow):
                     {
                         "higgs_mass": higgs_mass,
                         "job_index": job_index,
-                        "number_of_events": 2000,
+                        "number_of_events": 10, # 2000,
                     }
                 )
         for higgs_mass in range(250, 805, 5):
@@ -183,7 +215,7 @@ class AODSIMProduction(BaseTask, law.LocalWorkflow):
                     {
                         "higgs_mass": higgs_mass,
                         "job_index": job_index,
-                        "number_of_events": 4000,
+                        "number_of_events": 10, # 4000,
                     }
                 )
         return {k: v for k, v in enumerate(branch_map)}
@@ -218,12 +250,13 @@ class AODSIMProduction(BaseTask, law.LocalWorkflow):
     def run(self):
         # get the output
         _output = self.output()
+        self.logger.info("Producing {output:s}".format(output=_output.path))
 
         # get the config file
         _config = self.input()["config"]
 
         # run the production in a temporary directory, copy input files before starting the production
-        tmp_dir = law.LocalDirectoryTarget(is_tmp=True, tmp_dir=os.getcwd())
+        tmp_dir = law.LocalDirectoryTarget(is_tmp=True, tmp_dir=_output.parent)
         tmp_dir.touch()
         tmp_config = law.LocalFileTarget(os.path.join(tmp_dir.path, _config.basename))
         tmp_output = law.LocalFileTarget(os.path.join(tmp_dir.path, _output.basename))
@@ -231,6 +264,7 @@ class AODSIMProduction(BaseTask, law.LocalWorkflow):
 
         # run the production
         cmd = ["cmsRun", tmp_config.basename]
+        self.logger.info("Run command {cmd:s}".format(cmd=law.util.quote_cmd(cmd)))
         ret_code, out, err = law.util.interruptable_popen(
             cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, cwd=tmp_config.parent, env=os.environ
         )
@@ -245,3 +279,5 @@ class AODSIMProduction(BaseTask, law.LocalWorkflow):
 
         # write produced dataset to the output target
         _output.copy_from_local(tmp_output)
+        self.logger.info("Successfully produced {output:s}".format(output=_output.path))
+
