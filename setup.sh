@@ -2,6 +2,14 @@
 
 
 action () {
+
+    if [[ ! -z "${PROD_SETUP}" && "${PROD_SETUP}" == "1" ]]; then
+        2>&1 echo "environment has already been set up"
+        return "1"
+    fi
+
+
+
     # directory of that script and current working directory
     local shell_is_zsh this_file this_dir
     shell_is_zsh="$( [[ -z "${ZSH_VERSION}" ]] && echo "false" || echo "true" )"
@@ -25,7 +33,7 @@ action () {
     # these parts contain special binaries and libraries that should always be prioritized, e.g. the
     # 'production/' directory that contains the task definitions
     export PROD_PREPEND_PATH="${PROD_SOFTWARE_BASE}/local/bin"
-    export PROD_PREPEND_PYTHONPATH="${PROD_SOFTWARE_BASE}"
+    export PROD_PREPEND_PYTHONPATH="${PROD_BASE}"
 
     # provide python environment with conda
     source "${this_dir}/sandboxes/_setup_conda.sh" "" || return "$?"
@@ -40,6 +48,7 @@ action () {
         law index -q
     fi
 
+    export PROD_SETUP="1"
 }
 
 
