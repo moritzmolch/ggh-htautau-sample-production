@@ -103,30 +103,26 @@ class CMSDriverTask(law.Task):
         description="Number of events",
     )
 
-    def build_command(self, python_filename=None, fragment=None):
+    def build_command(self, python_filename):
         command = ["cmsDriver.py"]
-        # check if configuration filename and output filename are set
-        if python_filename is None or self.cms_driver_fileout == law.NO_STR:
-            raise ValueError("Command cannot be constructed: Either 'python_filename' and 'fileout' must be set.")
-
         # check if either fragment or input file are set
-        if fragment is None and self.cms_driver_filein == law.NO_STR:
+        if self.cms_driver_fragment == law.NO_STR and self.cms_driver_filein == law.NO_STR:
             raise ValueError("Command cannot be constructed: Either 'fragment' or 'filein' must be set.")
 
         # the cms driver command
-        command = [
+        cmd = [
             "cmsDriver.py",
         ]
 
         # if fragment is defined add the fragment as positional argument
-        if fragment is not None:
-            command.append(fragment)
+        if self.cms_driver_fragment != law.NO_STR:
+            cmd.append(self.cms_driver_fragment)
 
         # set the name of the configuration file
         cmd += ["--python_filename", python_filename]
 
         # set the input file for the production
-        if self.cms_driver_filein is not None:
+        if self.cms_driver_filein != law.NO_STR:
             cmd += ["--filein", self.cms_driver_filein]
 
         # set the output file of the production
@@ -187,16 +183,15 @@ class CMSDriverTask(law.Task):
 
         return cmd
 
-    def run_command(self, output, fragment=None):
-        cmd = self.build_command(python_filename=output.basename, fragment=fragment)
+    def run_command(self, command, output):
 
         # generate the configuration file
         ret_code, out, err = law.util.interruptable_popen(
-            cmd, cwd=output.abs_dirname, stdout=subprocess.PIPE, stderr=subprocess.PIPE, env=os.environ
+            command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, env=os.environ, cwd=output.dirname
         )
         if ret_code != 0:
             raise RuntimeError(
-                "Command {cmd} failed with exit code {ret_code:d}".format(cmd=cmd, ret_code=ret_code)
+                "Command {cmd} failed with exit code {ret_code:d}".format(cmd=command, ret_code=ret_code)
                 + "Output: {out:s}".format(out=out)
                 + "Error: {err:s}".format(err=err)
             )

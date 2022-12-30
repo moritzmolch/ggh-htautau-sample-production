@@ -1,3 +1,4 @@
+import datetime
 import time
 from jinja2 import Template
 import law
@@ -11,8 +12,8 @@ from production.tasks.base import BaseTask, CMSDriverTask
 
 class FragmentGeneration(BaseTask):
 
-    cmssw_path = luigi.PathParameter(exists=True)
-    fragment_template_path = luigi.PathParameter(exists=True)
+    cmssw_path = luigi.Parameter()
+    fragment_template_path = luigi.Parameter()
 
     higgs_mass = luigi.FloatParameter()
 
@@ -35,21 +36,30 @@ class FragmentGeneration(BaseTask):
         )
 
     def run(self):
+        # get the output
         _output = self.output()
-        _fragment_template = law.LocalFileTarget(self.fragment_template)
+        self.logger.info("creating fragment at {output:s}".format(output=_output.path))
+
+        # load template and replace placeholders
+        _fragment_template = law.LocalFileTarget(self.fragment_template_path)
         with _fragment_template.open(mode="r") as f:
             template = Template(f.read())
         content = template.render(higgs_mass=self.higgs_mass)
+
+        # write the fragment content to the output target
         _output.dump(content, formatter="text")
+        self.logger.info("successfully saved output to {output:s}".format(_output.path))
 
 
-class AODSIMConfigurationTemplate(BaseTask, CMSDriverTask):
+class AODSIMConfigurationTemplate(BaseTask, CMSDriverTask, law.SandboxTask):
 
     higgs_mass = luigi.FloatParameter()
     step_name = "aodsim"
 
     cms_driver_filein = law.NO_STR
     cms_driver_fileout = "{{ cms_driver_fileout }}"
+
+    sandbox = "bash::${PROD_BASE}/sandboxes/cmssw_default.sh"
 
     def requires(self):
         reqs = {}
@@ -73,19 +83,23 @@ class AODSIMConfigurationTemplate(BaseTask, CMSDriverTask):
     def run(self):
         # get the output
         _output = self.output()
+        self.logger.info(
+            "creating cmsDriver.py AODSIM configuration template at {output:s}".format(output=_output.path)
+        )
 
-        # get fragment path relative to the CMSSW root directory
+        # get fragment path relative to the CMSSW root directory and overwrite the corresponding instance attribute
         _fragment = self.input()["fragment"]
-        m = re.match("^(.*CMSSW_\d+_\d+_\d+(_[\w\d]+)?(/src)?)/(.*)$", _fragment.abspath)
+        m = re.match("^(.*CMSSW_\d+_\d+_\d+(_[\w\d]+)?(/src)?)/(.*)$", _fragment.path)
         if m is None:
-            raise RuntimeError("Fragment path {path:s} has not the expected pattern".format(_fragment.abspath))
-        rel_fragment_path = os.path.relpath(_fragment.abspath, start=m.group(1))
+            raise RuntimeError("Fragment path {path:s} has not the expected pattern".format(_fragment.path))
+        self.cms_driver_fragment = os.path.relpath(_fragment.path, start=m.group(1))
 
         # create the configuration
-        tmp_config = law.LocalFileTarget(is_tmp=True)
-        self.run_command(
-            tmp_config, fragment=rel_fragment_path, filein=self.cms_driver_filein, fileout=self.cms_driver_fileout
-        )
+        tmp_config = law.LocalFileTarget(is_tmp=True, tmp_dir=_output.parent)
+        tmp_python_filename = tmp_config.basename
+        cmd = self.build_command(python_filename=tmp_python_filename)
+        self.logger.info("running command {cmd:s}".format(cmd=law.util.quote_cmd(cmd)))
+        self.run_command(cmd, tmp_config)
         tmp_config.dump("This is a test file", formatter="text")
 
         # load configuration content in order to inject some template placeholders
@@ -100,10 +114,11 @@ class AODSIMConfigurationTemplate(BaseTask, CMSDriverTask):
         content = content.replace("nevts:-1", "nevts:{{ number_of_events }}")
 
         # inject template placeholders for python filename
-        content = content.replace(tmp_config.basename, "{{ python_filename }}")
+        content = content.replace(tmp_python_filename, "{{ python_filename }}")
 
         # write the config to the output target
         _output.dump(content, formatter="text")
+        self.logger.info("successfully saved output to {output:s}".format(_output.path))
 
 
 class AODSIMConfiguration(BaseTask):
@@ -213,8 +228,8 @@ class AODSIMProduction(BaseTask, law.LocalWorkflow):
         # run the production in a temporary directory, copy input files before starting the production
         tmp_dir = law.LocalDirectoryTarget(is_tmp=True, tmp_dir=os.getcwd())
         tmp_dir.touch()
-        tmp_config = law.LocalFileTarget(os.path.join(tmp_dir.abspath, _config.basename))
-        tmp_output = law.LocalFileTarget(os.path.join(tmp_dir.abspath, _output.basename))
+        tmp_config = law.LocalFileTarget(os.path.join(tmp_dir.path, _config.basename))
+        tmp_output = law.LocalFileTarget(os.path.join(tmp_dir.path, _output.basename))
         tmp_config.copy_from_local(_config)
 
         # run the production
