@@ -21,6 +21,13 @@ action () {
     export PROD_SOFTWARE_BASE="${PROD_BASE}/software"
     export PROD_CONDA_BASE="${PROD_SOFTWARE_BASE}/conda"
     export PROD_VENV_BASE="${PROD_SOFTWARE_BASE}/venvs"
+    export PROD_CMSSW_BASE="${PROD_SOFTWARE_BASE}/cmssw"
+
+    # set environment variables for CMSSW installation
+    export PROD_CMSSW_ENV_NAME="cmssw_default"
+    export PROD_CMSSW_VERSION="CMSSW_10_6_29_patch1"
+    export PROD_SCRAM_ARCH="slc7_amd64_gcc700"
+    export PROD_CMSSW_PATH="${PROD_CMSSW_BASE}/${PROD_CMSSW_ENV_NAME}/${PROD_CMSSW_VERSION}"
 
     # save original paths for binaries and libraries
     export PROD_ORIG_PATH="${PATH}"

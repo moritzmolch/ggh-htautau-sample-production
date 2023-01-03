@@ -12,13 +12,18 @@ action () {
         2>&1 echo "environment variable \$PROD_SOFTWARE_BASE must not be empty (needed by script ${this_file})"
         return "1"
     fi
-
-    PROD_CMSSW_BASE="${PROD_SOFTWARE_BASE}/cmssw"
-    PROD_CMSSW_ENV_NAME="$( basename "${this_file%.sh}" )"
-    PROD_CMSSW_VERSION="CMSSW_10_6_29_patch1"
-    PROD_SCRAM_ARCH="slc7_amd64_gcc700"
-
-    export PROD_CMSSW_BASE PROD_CMSSW_ENV_NAME PROD_CMSSW_VERSION PROD_SCRAM_ARCH
+    if [[ -z "${PROD_CMSSW_ENV_NAME}" ]]; then
+        2>&1 echo "environment variable \$PROD_CMSSW_ENV_NAME must not be empty (needed by script ${this_file})"
+        return "2"
+    fi
+    if [[ -z "${PROD_CMSSW_VERSION}" ]]; then
+        2>&1 echo "environment variable \$PROD_CMSSW_VERSION must not be empty (needed by script ${this_file})"
+        return "3"
+    fi
+    if [[ -z "${PROD_SCRAM_ARCH}" ]]; then
+        2>&1 echo "environment variable \$PROD_SCRAM_ARCH must not be empty (needed by script ${this_file})"
+        return "4"
+    fi
 
     source "${this_dir}/_setup_cmssw.sh" "$@"
 }
