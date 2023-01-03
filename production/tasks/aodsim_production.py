@@ -9,9 +9,6 @@ import subprocess
 import sys
 
 from production.tasks.base import BaseTask, CMSDriverTask
-from production.util import interruptable_and_readable_popen
-
-law.contrib.load("profiling")
 
 
 class FragmentGeneration(BaseTask, law.LocalWorkflow):
@@ -252,7 +249,6 @@ class AODSIMProduction(BaseTask, law.SandboxTask, law.LocalWorkflow):
     def output(self):
         return self.local_target(self.__class__.__name__, self.output_filename)
 
-    @law.profiling.profile_by_line
     def run(self):
         # get the output
         _output = self.output()
@@ -271,23 +267,17 @@ class AODSIMProduction(BaseTask, law.SandboxTask, law.LocalWorkflow):
         # run the production
         cmd = ["cmsRun", tmp_config.basename]
         self.logger.info("Run command {cmd:s}".format(cmd=law.util.quote_cmd(cmd)))
-        try:
-            p, lines = law.util.readable_popen(
-                cmd,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.STDOUT,
-                cwd=tmp_config.parent.path,
-                env=self.env,
-            )
-            for line in lines:
-                self.logger.info(line)
-                if p.poll() is not None:
-                    break
-        except Exception:
-            # terminate the process if the user interrupts execution with Ctrl-C
-            p.kill()
-            p.poll()
-            raise
+        p, lines = law.util.readable_popen(
+            cmd,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            cwd=tmp_config.parent.path,
+            env=self.env,
+        )
+        for line in lines:
+            print(line)
+            if p.poll() is not None:
+                break
 
         # error handling
         if p.returncode != 0:
