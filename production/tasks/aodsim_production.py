@@ -6,12 +6,15 @@ import luigi
 import os
 import re
 import subprocess
+import sys
 
 from production.tasks.base import BaseTask, CMSDriverTask
 from production.util import interruptable_and_readable_popen
 
+law.contrib.load("profiling")
 
-class FragmentGeneration(BaseTask):
+
+class FragmentGeneration(BaseTask, law.LocalWorkflow):
 
     cmssw_path = luigi.Parameter()
     fragment_template_path = luigi.Parameter()
@@ -249,6 +252,7 @@ class AODSIMProduction(BaseTask, law.SandboxTask, law.LocalWorkflow):
     def output(self):
         return self.local_target(self.__class__.__name__, self.output_filename)
 
+    @law.profiling.profile_by_line
     def run(self):
         # get the output
         _output = self.output()
@@ -267,16 +271,28 @@ class AODSIMProduction(BaseTask, law.SandboxTask, law.LocalWorkflow):
         # run the production
         cmd = ["cmsRun", tmp_config.basename]
         self.logger.info("Run command {cmd:s}".format(cmd=law.util.quote_cmd(cmd)))
-        ret_code, out, err, lines = law.util.interruptable_and_readable_popen(
-            cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, cwd=tmp_config.parent, env=os.environ
-        )
-        for line in lines:
-            self.logger.info(line)
-        if ret_code != 0:
+        try:
+            p, lines = law.util.readable_popen(
+                cmd,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                cwd=tmp_config.parent.path,
+                env=self.env,
+            )
+            for line in lines:
+                self.logger.info(line)
+                if p.poll() is not None:
+                    break
+        except Exception:
+            # terminate the process if the user interrupts execution with Ctrl-C
+            p.kill()
+            p.poll()
+            raise
+
+        # error handling
+        if p.returncode != 0:
             raise RuntimeError(
-                "Command {cmd} failed with exit code {ret_code:d}".format(cmd=cmd, ret_code=ret_code)
-                + "\nOutput: {out:s}".format(out=out)
-                + "\nError: {err:s}".format(err=err)
+                "Command {cmd} failed with exit code {ret_code:d}".format(cmd=cmd, ret_code=p.returncode)
             )
         elif not tmp_output.exists():
             raise RuntimeError("Output file {output:s} does not exist".format(output=tmp_output.path))
