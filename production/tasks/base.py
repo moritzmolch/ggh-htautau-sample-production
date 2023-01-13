@@ -4,6 +4,9 @@ import os
 import subprocess
 
 
+law.contrib.load("cms", "git", "htcondor", "tasks", "wlcg")
+
+
 class BaseTask(law.Task):
 
     store = os.path.expandvars("${PROD_BASE}/data")
@@ -200,3 +203,145 @@ class CMSDriverTask(law.SandboxTask):
             )
         elif not output.exists():
             raise RuntimeError("Output file {output:s} does not exist".format(output=output.path))
+
+
+class BundleCMSSW(BaseTask, law.contrib.tasks.TransferLocalFile, law.contrib.git.BundleGitRepository):
+
+    store = os.path.expandvars("${PROD_BUNDLE_BASE}")
+    replicas = luigi.IntParameter(default=10, description="number of replica archives to generate; default is 10")
+    
+    exclude = "^src/tmp"
+    task_namespace = None
+
+    def get_cmssw_path(self):
+        return os.path.expandvars("${PROD_BASE}")
+
+    def single_output(self):
+        return self.local_target("{0:s}.{1:s}.tgz".format(os.path.basename(self.get_cmssw_path()), self.checksum))
+
+    def get_file_pattern(self):
+        path = os.path.expandvars(os.path.expanduser(self.single_output().path))
+        return self.get_replicated_path(path, i=None if self.replicas <= 0 else "*")
+
+    def output(self):
+        return law.contrib.tasks.TransferLocalFile.output(self)
+    
+    @law.decorator.safe_output
+    def run(self):
+
+        # bundle repository
+        bundle = law.LocalFileTarget(is_tmp="tgz", tmp_dir=os.path.expandvars("${PROD_BASE}/tmp"))
+        self.bundle(bundle)
+
+        # log the size
+        self.publish_message("bundled CMSSW archive, size is {:.2f} {}".format(
+            *law.util.human_bytes(bundle.stat().st_size)))
+
+        # transfer replica archives
+        self.transfer(bundle)
+
+
+class BundleProductionRepository(law.contrib.git.BundleGitRepository):
+
+    store = os.path.expandvars("${PROD_BUNDLE_BASE}")
+    replicas = luigi.IntParameter(default=10, description="number of replica archives to generate; default is 10")
+
+    exclude_files = [".law", "config", "data", "software", "tmp", "usr", ".pre-commit-config.yaml", "luigi.cfg.old", "*~", "*.pyc"]
+    task_namespace = None
+
+    def get_repo_path(self):
+        return os.path.expandvars("${PROD_CMSSW_PATH}")
+
+    def single_output(self):
+        return self.local_target("{0:s}.{1:s}.tgz".format(os.path.basename(self.get_repo_path()), self.checksum))
+
+    def get_file_pattern(self):
+        path = os.path.expandvars(os.path.expanduser(self.single_output().path))
+        return self.get_replicated_path(path, i=None if self.replicas <= 0 else "*")
+
+    def output(self):
+        return law.contrib.tasks.TransferLocalFile.output(self)
+    
+    @law.decorator.safe_output
+    def run(self):
+
+        # bundle repository
+        bundle = law.LocalFileTarget(is_tmp="tgz", tmp_dir=os.path.expandvars("${PROD_BASE}/tmp"))
+        self.bundle(bundle)
+
+        # log the size
+        self.publish_message("bundled repository archive, size is {:.2f} {}".format(
+            *law.util.human_bytes(bundle.stat().st_size)))
+
+        # transfer replica archives
+        self.transfer(bundle)
+
+
+class HTCondorWorkflow(law.contrib.htcondor.HTCondorWorkflow):
+
+    htcondor_universe = luigi.Parameter()
+    htcondor_docker_image = luigi.Parameter()
+    htcondor_requirements = luigi.Parameter(default=law.NO_STR)
+
+    htcondor_request_cpus = luigi.IntParameter(default=1)
+    htcondor_request_gpus = luigi.IntParameter(default=0)
+    htcondor_request_memory = luigi.Parameter(default=2000, description="(in MB)")
+    htcondor_request_walltime = luigi.IntParameter(default=86400, description="(in s)")
+    htcondor_request_disk = luigi.Parameter(default=200000, description="(in KB)")
+    htcondor_remote_job = luigi.BoolParameter(default=None)
+
+    htcondor_accounting_group = luigi.Parameter()
+
+    htcondor_x509userproxy = law.contrib.wlcg.get_voms_proxy_file()
+  
+    bootstrap_file = luigi.Parameter(
+        description="Bootstrap script to be used in HTCondor job to set up law."
+    )
+
+    def htcondor_workflow_requires(self):
+        reqs = law.contrib.htcondor.HTCondorWorkflow.htcondor_workflow_requires(self)
+        reqs["repo"] = BundleProductionRepository.req(self, replicas=3)
+        reqs["cmssw"] = BundleCMSSW.req(self, replicas=3)
+
+
+    def htcondor_job_config(self, config, job_num, branches):
+
+        # include the wlcg specific tools script in the input sandbox
+        config.input_files["wlcg_tools"] = law.util.law_src_path(
+            "contrib/wlcg/scripts/law_wlcg_tools.sh")
+
+        ## contents of the HTCondor submission file
+
+        # job environment: docker image and requirements
+        config.custom_content.append(("universe", self.htcondor_universe))
+        config.custom_content.append(("docker_image", self.htcondor_docker_image))
+        if self.htcondor_requirements != law.NO_STR:
+            config.custom_content.append(("requirements", self.htcondor_requirements))
+
+        # log files; enforce that STDOUT and STDERR are not streamed to the submission machine
+        # while the job is running
+        # (log files might automatically be set by HTCondorJobFileFactory)
+        #config.custom_content.append(("log", ))
+        #config.custom_content.append(("output", ))
+        #config.custom_content.append(("error", ))
+        config.custom_content.append(("stream_output", False))
+        config.custom_content.append(("stream_error", False))
+
+        # resources and runtime
+        config.custom_content.append(("request_cpus", self.htcondor_request_cpus))
+        config.custom_content.append(("request_gpus", self.htcondor_request_gpus))
+        config.custom_content.append(("request_memory", self.htcondor_request_memory))
+        config.custom_content.append(("request_disk", self.htcondor_request_disk))
+        config.custom_content.append(("+request_walltime", self.htcondor_request_walltime))
+        if self.htcondor_remote_job is not None:
+            config.custom_content.append(("+remote_job", self.htcondor_remote_job)) 
+
+        # user information: accounting group and VOMS proxy
+        config.custom_content.append(("accounting_group", self.htcondor_accounting_group))
+        config.custom_content.append(("x509userproxy", self.htcondor_x509userproxy))
+
+        return config
+
+    def htcondor_use_local_scheduler(self):
+        # always use a local scheduler in remote jobs
+        return True
