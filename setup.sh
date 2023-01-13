@@ -18,6 +18,8 @@ action () {
 
     # set project base paths
     export PROD_BASE="${this_dir}"
+    export PROD_JOBS_BASE="${PROD_BASE}/jobs"
+    export PROD_BUNDLE_BASE="${PROD_BASE}/bundle"
     export PROD_SOFTWARE_BASE="${PROD_BASE}/software"
     export PROD_CONDA_BASE="${PROD_SOFTWARE_BASE}/conda"
     export PROD_VENV_BASE="${PROD_SOFTWARE_BASE}/venvs"

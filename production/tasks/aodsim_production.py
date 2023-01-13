@@ -11,7 +11,7 @@ import sys
 from production.tasks.base import BaseTask, CMSDriverTask
 
 
-class FragmentGeneration(BaseTask, law.LocalWorkflow):
+class FragmentGeneration(BaseTask):
 
     cmssw_path = luigi.Parameter()
     fragment_template_path = luigi.Parameter()
@@ -200,27 +200,40 @@ class AODSIMProduction(BaseTask, law.SandboxTask, law.LocalWorkflow):
 
     sandbox = "bash::${PROD_BASE}/sandboxes/cmssw_default.sh"
 
+    higgs_mass = 400
+    job_index = 2
+    number_of_events = 10
+
     def create_branch_map(self):
-        branch_map = []
-        for higgs_mass in range(50, 250, 1):
-            for job_index in range(5):
-                branch_map.append(
-                    {
-                        "higgs_mass": higgs_mass,
-                        "job_index": job_index,
-                        "number_of_events": 10,  # 2000,
-                    }
-                )
-        for higgs_mass in range(250, 805, 5):
-            for job_index in range(5, 15):
-                branch_map.append(
-                    {
-                        "higgs_mass": higgs_mass,
-                        "job_index": job_index,
-                        "number_of_events": 10,  # 4000,
-                    }
-                )
-        return {k: v for k, v in enumerate(branch_map)}
+        return {
+            0: {
+                "higgs_mass": self.higgs_mass,
+                "job_index": self.job_index,
+                "number_of_events": self.number_of_events,
+            }
+        }
+
+    #def create_branch_map(self):
+    #    branch_map = []
+    #    for higgs_mass in range(50, 250, 1):
+    #        for job_index in range(5):
+    #            branch_map.append(
+    #                {
+    #                    "higgs_mass": higgs_mass,
+    #                    "job_index": job_index,
+    #                    "number_of_events": 10,  # 2000,
+    #                }
+    #            )
+    #    for higgs_mass in range(250, 805, 5):
+    #        for job_index in range(5, 15):
+    #            branch_map.append(
+    #                {
+    #                    "higgs_mass": higgs_mass,
+    #                    "job_index": job_index,
+    #                    "number_of_events": 10,  # 4000,
+    #                }
+    #            )
+    #    return {k: v for k, v in enumerate(branch_map)}
 
     @property
     def config_filename(self):
