@@ -8,7 +8,7 @@ import re
 import subprocess
 import sys
 
-from production.tasks.base import BaseTask, CMSDriverTask
+from production.tasks.base import BaseTask, CMSDriverTask, HTCondorWorkflow
 
 
 class FragmentGeneration(BaseTask):
@@ -194,7 +194,7 @@ class AODSIMConfiguration(BaseTask):
         _output.dump(content, formatter="text")
 
 
-class AODSIMProduction(BaseTask, law.SandboxTask, law.LocalWorkflow):
+class AODSIMProduction(BaseTask, law.SandboxTask, HTCondorWorkflow, law.LocalWorkflow):
 
     step_name = "aodsim"
 
@@ -260,7 +260,7 @@ class AODSIMProduction(BaseTask, law.SandboxTask, law.LocalWorkflow):
         return reqs
 
     def output(self):
-        return self.local_target(self.__class__.__name__, self.output_filename)
+        return law.local_target(self.output_filename)
 
     def run(self):
         # get the output
@@ -271,8 +271,9 @@ class AODSIMProduction(BaseTask, law.SandboxTask, law.LocalWorkflow):
         _config = self.input()["config"]
 
         # run the production in a temporary directory, copy input files before starting the production
-        tmp_dir = law.LocalDirectoryTarget(is_tmp=True, tmp_dir=_output.parent)
+        tmp_dir = law.LocalDirectoryTarget(is_tmp=True, tmp_dir=os.expandvars("${PROD_BASE}/tmp"))
         tmp_dir.touch()
+        print(tmp_dir)
         tmp_config = law.LocalFileTarget(os.path.join(tmp_dir.path, _config.basename))
         tmp_output = law.LocalFileTarget(os.path.join(tmp_dir.path, _output.basename))
         tmp_config.copy_from_local(_config)
@@ -280,26 +281,26 @@ class AODSIMProduction(BaseTask, law.SandboxTask, law.LocalWorkflow):
         # run the production
         cmd = ["cmsRun", tmp_config.basename]
         self.logger.info("Run command {cmd:s}".format(cmd=law.util.quote_cmd(cmd)))
-        p, lines = law.util.readable_popen(
-            cmd,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.STDOUT,
-            cwd=tmp_config.parent.path,
-            env=self.env,
-        )
-        for line in lines:
-            print(line)
-            if p.poll() is not None:
-                break
+        #p, lines = law.util.readable_popen(
+        #    cmd,
+        #    stdout=subprocess.PIPE,
+        #    stderr=subprocess.STDOUT,
+        #    cwd=tmp_config.parent.path,
+        #    env=self.env,
+        #)
+        #for line in lines:
+        #    print(line)
+        #    if p.poll() is not None:
+        #        break
 
         # error handling
-        if p.returncode != 0:
-            raise RuntimeError(
-                "Command {cmd} failed with exit code {ret_code:d}".format(cmd=cmd, ret_code=p.returncode)
-            )
-        elif not tmp_output.exists():
-            raise RuntimeError("Output file {output:s} does not exist".format(output=tmp_output.path))
+        #if p.returncode != 0:
+        #    raise RuntimeError(
+        #        "Command {cmd} failed with exit code {ret_code:d}".format(cmd=cmd, ret_code=p.returncode)
+        #    )
+        #elif not tmp_output.exists():
+        #    raise RuntimeError("Output file {output:s} does not exist".format(output=tmp_output.path))
 
         # write produced dataset to the output target
-        _output.copy_from_local(tmp_output)
+        #_output.copy_from_local(tmp_output)
         self.logger.info("Successfully produced {output:s}".format(output=_output.path))
