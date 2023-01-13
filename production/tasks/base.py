@@ -341,6 +341,11 @@ class HTCondorWorkflow(law.contrib.htcondor.HTCondorWorkflow):
         reqs["cmssw"] = BundleCMSSW.req(self, replicas=3)
         reqs["conda"] = BundleConda.req(self, replicas=3)
 
+    def htcondor_create_job_file_factory(self):
+        factory = super(HTCondorWorkflow, self).htcondor_create_job_file_factory()
+        factory.is_tmp = False
+        return factory
+
     def htcondor_bootstrap_file(self):
         return os.path.expandvars("${PROD_BASE}/production/tasks/remote_bootstrap.sh") 
 
