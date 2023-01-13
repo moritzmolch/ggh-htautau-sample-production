@@ -277,6 +277,47 @@ class BundleProductionRepository(law.contrib.git.BundleGitRepository):
         self.transfer(bundle)
 
 
+class BundleConda(law.contrib.tasks.TransferLocalFile):
+
+    store = os.path.expandvars("${PROD_BUNDLE_BASE}")
+    replicas = luigi.IntParameter(default=10, description="number of replica archives to generate; default is 10")
+
+    task_namespace = None
+
+    def get_conda_path(self):
+        return os.path.expandvars("${PROD_CONDA_BASE}")
+
+    def single_output(self):
+        return self.local_target("{0:s}.tgz".format(os.path.basename(self.get_conda_path())))
+
+    def get_file_pattern(self):
+        path = os.path.expandvars(os.path.expanduser(self.single_output().path))
+        return self.get_replicated_path(path, i=None if self.replicas <= 0 else "*")
+
+    def output(self):
+        return law.contrib.tasks.TransferLocalFile.output(self)
+
+    @law.decorator.safe_output
+    def run(self):
+
+        # bundle repository with conda-pack
+        bundle = law.LocalFileTarget(is_tmp="tgz", tmp_dir=os.path.expandvars("${PROD_BASE}/tmp"))
+        cmd = ["conda-pack", "--prefix", self.get_conda_path(), "--output", bundle.path]
+        ret_code, out, err = law.util.interruptable_popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, env=os.environ)
+        if ret_code != 0:
+            raise Exception("conda-pack failed with exit code {0:d}".format(ret_code))
+
+        self.bundle(bundle)
+
+        # log the size
+        self.publish_message("bundled conda archive, size is {:.2f} {}".format(
+            *law.util.human_bytes(bundle.stat().st_size)))
+
+        # transfer replica archives
+        self.transfer(bundle)
+
+
+
 class HTCondorWorkflow(law.contrib.htcondor.HTCondorWorkflow):
 
     htcondor_universe = luigi.Parameter()
@@ -293,22 +334,21 @@ class HTCondorWorkflow(law.contrib.htcondor.HTCondorWorkflow):
     htcondor_accounting_group = luigi.Parameter()
 
     htcondor_x509userproxy = law.contrib.wlcg.get_voms_proxy_file()
-  
-    bootstrap_file = luigi.Parameter(
-        description="Bootstrap script to be used in HTCondor job to set up law."
-    )
 
     def htcondor_workflow_requires(self):
         reqs = law.contrib.htcondor.HTCondorWorkflow.htcondor_workflow_requires(self)
         reqs["repo"] = BundleProductionRepository.req(self, replicas=3)
         reqs["cmssw"] = BundleCMSSW.req(self, replicas=3)
+        reqs["conda"] = BundleConda.req(self, replicas=3)
 
+    def htcondor_bootstrap_file(self):
+        return os.path.expandvars("${PROD_BASE}/production/tasks/remote_bootstrap.sh") 
 
     def htcondor_job_config(self, config, job_num, branches):
 
-        # include the wlcg specific tools script in the input sandbox
-        config.input_files["wlcg_tools"] = law.util.law_src_path(
-            "contrib/wlcg/scripts/law_wlcg_tools.sh")
+        # append law's wlcg tool script to the collection of input files
+        # needed for setting up the software environment
+        config.input_files["wlcg_tools"] = law.util.law_src_path("contrib/wlcg/scripts/law_wlcg_tools.sh")
 
         ## contents of the HTCondor submission file
 
@@ -339,6 +379,28 @@ class HTCondorWorkflow(law.contrib.htcondor.HTCondorWorkflow):
         # user information: accounting group and VOMS proxy
         config.custom_content.append(("accounting_group", self.htcondor_accounting_group))
         config.custom_content.append(("x509userproxy", self.htcondor_x509userproxy))
+
+        # get the URIs of the bundles
+        reqs = self.htcondor_workflow_requires()
+        def get_bundle_info(task):
+            uris = task.output().dir.uri(cmd="filecopy", return_all=True)
+            pattern = os.path.basename(task.get_file_pattern())
+            return ",".join(uris), pattern
+
+        # render variables in bootstrap script
+
+        config.render_variables["prod_conda_base"] = law.util.rel_path(os.environ["PROD_CONDA_BASE"], os.environ["PROD_BASE"])
+        uris, pattern = get_bundle_info(reqs["repo"])
+        config.render_variables["prod_repo_uris"] = uris
+        config.render_variables["prod_repo_pattern"] = pattern
+
+        uris, pattern = get_bundle_info(reqs["conda"])
+        config.render_variables["prod_conda_uris"] = uris
+        config.render_variables["prod_conda_pattern"] = pattern
+
+        uris, pattern = get_bundle_info(reqs["cmssw"])
+        config.render_variables["prod_cmssw_uris"] = uris
+        config.render_variables["prod_cmssw_pattern"] = pattern
 
         return config
 
