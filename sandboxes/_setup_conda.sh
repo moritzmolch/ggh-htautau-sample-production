@@ -41,7 +41,7 @@ EOF
     conda activate || return "$?"
 
     if [[ "${install_conda}" == "true" ]]; then
-        conda install --yes luigi law jinja2 || return "$?"
+        conda install --yes luigi law jinja2 conda-pack || return "$?"
 
         touch "${install_flag_file}"
         echo "$( date +%s )" >> "${install_flag_file}"
