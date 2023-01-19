@@ -14,8 +14,15 @@ class BaseTask(law.Task):
     def __init__(self, *args, **kwargs):
         super(BaseTask, self).__init__(*args, **kwargs)
 
+    def remote_path(self, *path):
+        return os.path.join(*path)
+
+    def remote_target(self, *path, **kwargs):
+        target_class = law.WLCGDirectoryTarget if kwargs.pop("dir", False) else law.WLCGFileTarget
+        return target_class(self.remote_path(*path))
+
     def local_path(self, *path):
-        parts = (self.store, ) + path
+        parts = (self.store,) + path
         return os.path.join(*parts)
 
     def local_target(self, *path, **kwargs):
@@ -226,7 +233,7 @@ class BundleCMSSW(BaseTask, law.contrib.tasks.TransferLocalFile, law.contrib.cms
 
     def output(self):
         return law.contrib.tasks.TransferLocalFile.output(self)
-    
+
     @law.decorator.safe_output
     def run(self):
 
@@ -235,8 +242,9 @@ class BundleCMSSW(BaseTask, law.contrib.tasks.TransferLocalFile, law.contrib.cms
         self.bundle(bundle)
 
         # log the size
-        self.publish_message("bundled CMSSW archive, size is {:.2f} {}".format(
-            *law.util.human_bytes(bundle.stat().st_size)))
+        self.publish_message(
+            "bundled CMSSW archive, size is {:.2f} {}".format(*law.util.human_bytes(bundle.stat().st_size))
+        )
 
         # transfer replica archives
         self.transfer(bundle)
@@ -262,7 +270,7 @@ class BundleProductionRepository(BaseTask, law.contrib.tasks.TransferLocalFile, 
 
     def output(self):
         return law.contrib.tasks.TransferLocalFile.output(self)
-    
+
     @law.decorator.safe_output
     def run(self):
 
@@ -271,8 +279,9 @@ class BundleProductionRepository(BaseTask, law.contrib.tasks.TransferLocalFile, 
         self.bundle(bundle)
 
         # log the size
-        self.publish_message("bundled repository archive, size is {:.2f} {}".format(
-            *law.util.human_bytes(bundle.stat().st_size)))
+        self.publish_message(
+            "bundled repository archive, size is {:.2f} {}".format(*law.util.human_bytes(bundle.stat().st_size))
+        )
 
         # transfer replica archives
         self.transfer(bundle)
@@ -304,7 +313,9 @@ class BundleConda(BaseTask, law.contrib.tasks.TransferLocalFile):
         # bundle repository with conda-pack
         bundle = law.LocalFileTarget(is_tmp="tgz", tmp_dir=os.path.expandvars("${PROD_BASE}/tmp"))
         cmd = ["conda-pack", "--prefix", self.get_conda_path(), "--output", bundle.path]
-        ret_code, out, err = law.util.interruptable_popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, env=os.environ)
+        ret_code, out, err = law.util.interruptable_popen(
+            cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, env=os.environ
+        )
         if ret_code != 0:
             raise Exception(
                 "conda-pack failed with exit code {0:d}".format(ret_code)
@@ -313,8 +324,9 @@ class BundleConda(BaseTask, law.contrib.tasks.TransferLocalFile):
             )
 
         # log the size
-        self.publish_message("bundled conda archive, size is {:.2f} {}".format(
-            *law.util.human_bytes(bundle.stat().st_size)))
+        self.publish_message(
+            "bundled conda archive, size is {:.2f} {}".format(*law.util.human_bytes(bundle.stat().st_size))
+        )
 
         # transfer replica archives
         self.transfer(bundle)
@@ -363,13 +375,15 @@ class HTCondorWorkflow(law.contrib.htcondor.HTCondorWorkflow):
         return law.LocalDirectoryTarget(os.path.expandvars("${PROD_JOBS_BASE}"))
 
     def htcondor_create_job_file_factory(self, **kwargs):
-        kwargs = law.util.merge_dicts(self.htcondor_job_file_factory_defaults, {"universe": self.htcondor_universe}, kwargs)
+        kwargs = law.util.merge_dicts(
+            self.htcondor_job_file_factory_defaults, {"universe": self.htcondor_universe}, kwargs
+        )
         factory = super(HTCondorWorkflow, self).htcondor_create_job_file_factory(**kwargs)
         factory.is_tmp = False
         return factory
 
     def htcondor_bootstrap_file(self):
-        return os.path.expandvars("${PROD_BASE}/production/tasks/remote_bootstrap.sh") 
+        return os.path.expandvars("${PROD_BASE}/production/tasks/remote_bootstrap.sh")
 
     def htcondor_job_config(self, config, job_num, branches):
 
@@ -380,7 +394,7 @@ class HTCondorWorkflow(law.contrib.htcondor.HTCondorWorkflow):
         ## contents of the HTCondor submission file
 
         # job environment: docker image and requirements
-        #config.custom_content.append(("universe", self.htcondor_universe))
+        # config.custom_content.append(("universe", self.htcondor_universe))
         config.custom_content.append(("docker_image", self.htcondor_docker_image))
         if self.htcondor_requirements != law.NO_STR:
             config.custom_content.append(("requirements", self.htcondor_requirements))
@@ -389,9 +403,18 @@ class HTCondorWorkflow(law.contrib.htcondor.HTCondorWorkflow):
         # while the job is running
         # (log files might automatically be set by HTCondorJobFileFactory)
         log_dir = os.path.join(self.htcondor_output_directory().path, "logs")
-        config.custom_content.append(("log", os.path.join(log_dir, "log_{0:d}_{1:d}To{2:d}.txt".format(job_num, branches[0], branches[-1]))))
-        config.custom_content.append(("output", os.path.join(log_dir, "output_{0:d}_{1:d}To{2:d}.txt".format(job_num, branches[0], branches[-1]))))
-        config.custom_content.append(("error", os.path.join(log_dir, "error_{0:d}_{1:d}To{2:d}.txt".format(job_num, branches[0], branches[-1]))))
+        config.custom_content.append(
+            ("log", os.path.join(log_dir, "log_{0:d}_{1:d}To{2:d}.txt".format(job_num, branches[0], branches[-1])))
+        )
+        config.custom_content.append(
+            (
+                "output",
+                os.path.join(log_dir, "output_{0:d}_{1:d}To{2:d}.txt".format(job_num, branches[0], branches[-1])),
+            )
+        )
+        config.custom_content.append(
+            ("error", os.path.join(log_dir, "error_{0:d}_{1:d}To{2:d}.txt".format(job_num, branches[0], branches[-1])))
+        )
         config.custom_content.append(("stream_output", False))
         config.custom_content.append(("stream_error", False))
 
@@ -403,7 +426,7 @@ class HTCondorWorkflow(law.contrib.htcondor.HTCondorWorkflow):
         config.custom_content.append(("request_disk", self.htcondor_request_disk))
         config.custom_content.append(("+request_walltime", self.htcondor_request_walltime))
         if self.htcondor_remote_job:
-            config.custom_content.append(("+remote_job", self.htcondor_remote_job)) 
+            config.custom_content.append(("+remote_job", self.htcondor_remote_job))
 
         # user information: accounting group and VOMS proxy
         config.custom_content.append(("accounting_group", self.htcondor_accounting_group))
@@ -413,6 +436,7 @@ class HTCondorWorkflow(law.contrib.htcondor.HTCondorWorkflow):
 
         # get the URIs of the bundles
         reqs = self.htcondor_workflow_requires()
+
         def get_bundle_info(task):
             uris = task.output().dir.uri(cmd="filecopy", return_all=True)
             pattern = os.path.basename(task.get_file_pattern())
@@ -421,7 +445,9 @@ class HTCondorWorkflow(law.contrib.htcondor.HTCondorWorkflow):
         # render variables in bootstrap script
         config.render_variables["user"] = os.environ["USER"]
 
-        config.render_variables["prod_conda_base"] = os.path.relpath(os.environ["PROD_CONDA_BASE"], os.environ["PROD_BASE"])
+        config.render_variables["prod_conda_base"] = os.path.relpath(
+            os.environ["PROD_CONDA_BASE"], os.environ["PROD_BASE"]
+        )
         uris, pattern = get_bundle_info(reqs["repo"])
         config.render_variables["prod_repo_uris"] = uris
         config.render_variables["prod_repo_pattern"] = pattern
