@@ -15,7 +15,7 @@ class BaseTask(law.Task):
         super(BaseTask, self).__init__(*args, **kwargs)
 
     def local_path(self, *path):
-        parts = (self.store,) + path
+        parts = (self.store, ) + path
         return os.path.join(*parts)
 
     def local_target(self, *path, **kwargs):
@@ -205,19 +205,20 @@ class CMSDriverTask(law.SandboxTask):
             raise RuntimeError("Output file {output:s} does not exist".format(output=output.path))
 
 
-class BundleCMSSW(BaseTask, law.contrib.tasks.TransferLocalFile, law.contrib.git.BundleGitRepository):
+class BundleCMSSW(BaseTask, law.contrib.tasks.TransferLocalFile, law.contrib.cms.BundleCMSSW):
 
     store = os.path.expandvars("${PROD_BUNDLE_BASE}")
     replicas = luigi.IntParameter(default=10, description="number of replica archives to generate; default is 10")
-    
+
+    cmssw_checksumming = False
     exclude = "^src/tmp"
     task_namespace = None
 
     def get_cmssw_path(self):
-        return os.path.expandvars("${PROD_BASE}")
+        return os.path.expandvars("${PROD_CMSSW_PATH}")
 
     def single_output(self):
-        return self.local_target("{0:s}.{1:s}.tgz".format(os.path.basename(self.get_cmssw_path()), self.checksum))
+        return self.local_target("{0:s}.tgz".format(os.path.basename(self.get_cmssw_path())))
 
     def get_file_pattern(self):
         path = os.path.expandvars(os.path.expanduser(self.single_output().path))
@@ -241,19 +242,19 @@ class BundleCMSSW(BaseTask, law.contrib.tasks.TransferLocalFile, law.contrib.git
         self.transfer(bundle)
 
 
-class BundleProductionRepository(law.contrib.git.BundleGitRepository):
+class BundleProductionRepository(BaseTask, law.contrib.tasks.TransferLocalFile, law.contrib.git.BundleGitRepository):
 
     store = os.path.expandvars("${PROD_BUNDLE_BASE}")
     replicas = luigi.IntParameter(default=10, description="number of replica archives to generate; default is 10")
 
-    exclude_files = [".law", "config", "data", "software", "tmp", "usr", ".pre-commit-config.yaml", "luigi.cfg.old", "*~", "*.pyc"]
+    exclude_files = [".law", "bundle", "config", "jobs", "software", "tmp", "luigi.cfg.old", "*~", "*.pyc"]
     task_namespace = None
 
     def get_repo_path(self):
-        return os.path.expandvars("${PROD_CMSSW_PATH}")
+        return os.path.expandvars("${PROD_BASE}")
 
     def single_output(self):
-        return self.local_target("{0:s}.{1:s}.tgz".format(os.path.basename(self.get_repo_path()), self.checksum))
+        return self.local_target("{0:s}.tgz".format(os.path.basename(self.get_repo_path())))
 
     def get_file_pattern(self):
         path = os.path.expandvars(os.path.expanduser(self.single_output().path))
@@ -277,7 +278,7 @@ class BundleProductionRepository(law.contrib.git.BundleGitRepository):
         self.transfer(bundle)
 
 
-class BundleConda(law.contrib.tasks.TransferLocalFile):
+class BundleConda(BaseTask, law.contrib.tasks.TransferLocalFile):
 
     store = os.path.expandvars("${PROD_BUNDLE_BASE}")
     replicas = luigi.IntParameter(default=10, description="number of replica archives to generate; default is 10")
@@ -305,9 +306,11 @@ class BundleConda(law.contrib.tasks.TransferLocalFile):
         cmd = ["conda-pack", "--prefix", self.get_conda_path(), "--output", bundle.path]
         ret_code, out, err = law.util.interruptable_popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, env=os.environ)
         if ret_code != 0:
-            raise Exception("conda-pack failed with exit code {0:d}".format(ret_code))
-
-        self.bundle(bundle)
+            raise Exception(
+                "conda-pack failed with exit code {0:d}".format(ret_code)
+                + "\nOutput:\n{0:s}".format(out)
+                + "\nError:\n{0:s}".format(err)
+            )
 
         # log the size
         self.publish_message("bundled conda archive, size is {:.2f} {}".format(
@@ -317,32 +320,51 @@ class BundleConda(law.contrib.tasks.TransferLocalFile):
         self.transfer(bundle)
 
 
-
 class HTCondorWorkflow(law.contrib.htcondor.HTCondorWorkflow):
 
-    htcondor_universe = luigi.Parameter()
-    htcondor_docker_image = luigi.Parameter()
-    htcondor_requirements = luigi.Parameter(default=law.NO_STR)
+    htcondor_universe = luigi.Parameter(default="docker", significant=False)
+    htcondor_docker_image = luigi.Parameter(default="mschnepf/slc7-condocker", significant=False)
+    htcondor_requirements = luigi.Parameter(default=law.NO_STR, significant=False)
 
-    htcondor_request_cpus = luigi.IntParameter(default=1)
-    htcondor_request_gpus = luigi.IntParameter(default=0)
-    htcondor_request_memory = luigi.Parameter(default=2000, description="(in MB)")
-    htcondor_request_walltime = luigi.IntParameter(default=86400, description="(in s)")
-    htcondor_request_disk = luigi.Parameter(default=200000, description="(in KB)")
-    htcondor_remote_job = luigi.BoolParameter(default=None)
+    htcondor_request_cpus = luigi.IntParameter(default=1, significant=False)
+    htcondor_request_gpus = luigi.IntParameter(default=0, significant=False)
+    htcondor_request_memory = luigi.Parameter(default=2000, significant=False, description="(in MB)")
+    htcondor_request_walltime = luigi.IntParameter(default=3600, significant=False, description="(in s)")
+    htcondor_request_disk = luigi.Parameter(default=200000, significant=False, description="(in KB)")
+    htcondor_remote_job = luigi.BoolParameter(default=False, significant=False)
 
-    htcondor_accounting_group = luigi.Parameter()
-
+    htcondor_accounting_group = luigi.Parameter(default="cms.higgs", significant=False)
+    htcondor_run_as_owner = luigi.BoolParameter(default=True, significant=False)
     htcondor_x509userproxy = law.contrib.wlcg.get_voms_proxy_file()
+
+    exclude_params_branch = {
+        "htcondor_universe",
+        "htcondor_docker_image",
+        "htcondor_requirements",
+        "htcondor_request_cpus",
+        "htcondor_request_gpus",
+        "htcondor_request_memory",
+        "htcondor_request_walltime",
+        "htcondor_request_disk",
+        "htcondor_remote_job",
+        "htcondor_accounting_group",
+        "htcondor_run_as_owner",
+        "htcondor_x509userproxy",
+    }
 
     def htcondor_workflow_requires(self):
         reqs = law.contrib.htcondor.HTCondorWorkflow.htcondor_workflow_requires(self)
         reqs["repo"] = BundleProductionRepository.req(self, replicas=3)
         reqs["cmssw"] = BundleCMSSW.req(self, replicas=3)
         reqs["conda"] = BundleConda.req(self, replicas=3)
+        return reqs
 
-    def htcondor_create_job_file_factory(self):
-        factory = super(HTCondorWorkflow, self).htcondor_create_job_file_factory()
+    def htcondor_output_directory(self):
+        return law.LocalDirectoryTarget(os.path.expandvars("${PROD_JOBS_BASE}"))
+
+    def htcondor_create_job_file_factory(self, **kwargs):
+        kwargs = law.util.merge_dicts(self.htcondor_job_file_factory_defaults, {"universe": self.htcondor_universe}, kwargs)
+        factory = super(HTCondorWorkflow, self).htcondor_create_job_file_factory(**kwargs)
         factory.is_tmp = False
         return factory
 
@@ -358,7 +380,7 @@ class HTCondorWorkflow(law.contrib.htcondor.HTCondorWorkflow):
         ## contents of the HTCondor submission file
 
         # job environment: docker image and requirements
-        config.custom_content.append(("universe", self.htcondor_universe))
+        #config.custom_content.append(("universe", self.htcondor_universe))
         config.custom_content.append(("docker_image", self.htcondor_docker_image))
         if self.htcondor_requirements != law.NO_STR:
             config.custom_content.append(("requirements", self.htcondor_requirements))
@@ -366,23 +388,27 @@ class HTCondorWorkflow(law.contrib.htcondor.HTCondorWorkflow):
         # log files; enforce that STDOUT and STDERR are not streamed to the submission machine
         # while the job is running
         # (log files might automatically be set by HTCondorJobFileFactory)
-        #config.custom_content.append(("log", ))
-        #config.custom_content.append(("output", ))
-        #config.custom_content.append(("error", ))
+        log_dir = os.path.join(self.htcondor_output_directory().path, "logs")
+        config.custom_content.append(("log", os.path.join(log_dir, "log_{0:d}_{1:d}To{2:d}.txt".format(job_num, branches[0], branches[-1]))))
+        config.custom_content.append(("output", os.path.join(log_dir, "output_{0:d}_{1:d}To{2:d}.txt".format(job_num, branches[0], branches[-1]))))
+        config.custom_content.append(("error", os.path.join(log_dir, "error_{0:d}_{1:d}To{2:d}.txt".format(job_num, branches[0], branches[-1]))))
         config.custom_content.append(("stream_output", False))
         config.custom_content.append(("stream_error", False))
 
         # resources and runtime
         config.custom_content.append(("request_cpus", self.htcondor_request_cpus))
-        config.custom_content.append(("request_gpus", self.htcondor_request_gpus))
+        if self.htcondor_request_gpus > 0:
+            config.custom_content.append(("request_gpus", self.htcondor_request_gpus))
         config.custom_content.append(("request_memory", self.htcondor_request_memory))
         config.custom_content.append(("request_disk", self.htcondor_request_disk))
         config.custom_content.append(("+request_walltime", self.htcondor_request_walltime))
-        if self.htcondor_remote_job is not None:
+        if self.htcondor_remote_job:
             config.custom_content.append(("+remote_job", self.htcondor_remote_job)) 
 
         # user information: accounting group and VOMS proxy
         config.custom_content.append(("accounting_group", self.htcondor_accounting_group))
+        if self.htcondor_run_as_owner:
+            config.custom_content.append(("run_as_owner", self.htcondor_run_as_owner))
         config.custom_content.append(("x509userproxy", self.htcondor_x509userproxy))
 
         # get the URIs of the bundles
@@ -393,8 +419,9 @@ class HTCondorWorkflow(law.contrib.htcondor.HTCondorWorkflow):
             return ",".join(uris), pattern
 
         # render variables in bootstrap script
+        config.render_variables["user"] = os.environ["USER"]
 
-        config.render_variables["prod_conda_base"] = law.util.rel_path(os.environ["PROD_CONDA_BASE"], os.environ["PROD_BASE"])
+        config.render_variables["prod_conda_base"] = os.path.relpath(os.environ["PROD_CONDA_BASE"], os.environ["PROD_BASE"])
         uris, pattern = get_bundle_info(reqs["repo"])
         config.render_variables["prod_repo_uris"] = uris
         config.render_variables["prod_repo_pattern"] = pattern
