@@ -11,6 +11,9 @@ import sys
 from production.tasks.base import BaseTask, CMSDriverTask, HTCondorWorkflow
 
 
+law.contrib.load("wlcg")
+
+
 class FragmentGeneration(BaseTask):
 
     cmssw_path = luigi.Parameter()
@@ -194,9 +197,9 @@ class AODSIMConfiguration(BaseTask):
         _output.dump(content, formatter="text")
 
 
-class AODSIMProduction(BaseTask, HTCondorWorkflow, law.LocalWorkflow, law.SandboxTask): # HTCondorWorkflow, law.LocalWorkflow, law.SandboxTask):
+class AODSIMProduction(BaseTask, HTCondorWorkflow, law.LocalWorkflow, law.SandboxTask):
 
-    step_name = "aodsim"
+    step = "aodsim"
     sandbox = "bash::${PROD_BASE}/sandboxes/cmssw_default.sh"
 
     higgs_mass = 400
@@ -212,7 +215,7 @@ class AODSIMProduction(BaseTask, HTCondorWorkflow, law.LocalWorkflow, law.Sandbo
             }
         }
 
-    #def create_branch_map(self):
+    # def create_branch_map(self):
     #    branch_map = []
     #    for higgs_mass in range(50, 250, 1):
     #        for job_index in range(5):
@@ -259,7 +262,7 @@ class AODSIMProduction(BaseTask, HTCondorWorkflow, law.LocalWorkflow, law.Sandbo
         return reqs
 
     def output(self):
-        return self.local_target(self.__class__.__name__, self.output_filename)
+        return self.remote_target(self.step, self.output_filename)
 
     def run(self):
         # get the output
@@ -272,7 +275,6 @@ class AODSIMProduction(BaseTask, HTCondorWorkflow, law.LocalWorkflow, law.Sandbo
         # run the production in a temporary directory, copy input files before starting the production
         tmp_dir = law.LocalDirectoryTarget(is_tmp=True, tmp_dir=os.path.expandvars("${PROD_BASE}/tmp"))
         tmp_dir.touch()
-        print(tmp_dir)
         tmp_config = law.LocalFileTarget(os.path.join(tmp_dir.path, _config.basename))
         tmp_output = law.LocalFileTarget(os.path.join(tmp_dir.path, _output.basename))
         tmp_config.copy_from_local(_config)

@@ -14,13 +14,6 @@ class BaseTask(law.Task):
     def __init__(self, *args, **kwargs):
         super(BaseTask, self).__init__(*args, **kwargs)
 
-    def remote_path(self, *path):
-        return os.path.join(*path)
-
-    def remote_target(self, *path, **kwargs):
-        target_class = law.WLCGDirectoryTarget if kwargs.pop("dir", False) else law.WLCGFileTarget
-        return target_class(self.remote_path(*path))
-
     def local_path(self, *path):
         parts = (self.store,) + path
         return os.path.join(*parts)
@@ -28,6 +21,13 @@ class BaseTask(law.Task):
     def local_target(self, *path, **kwargs):
         target_class = law.LocalDirectoryTarget if kwargs.pop("dir", False) else law.LocalFileTarget
         return target_class(self.local_path(*path))
+
+    def remote_path(self, *path):
+        return os.path.join(*path)
+
+    def remote_target(self, *path, **kwargs):
+        target_class = law.WLCGDirectoryTarget if kwargs.pop("dir", False) else law.WLCGFileTarget
+        return target_class(self.remote_path(*path))
 
 
 class CMSDriverTask(law.SandboxTask):
