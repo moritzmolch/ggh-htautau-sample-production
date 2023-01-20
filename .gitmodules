@@ -1,6 +1,0 @@
-[submodule "modules/law"]
-	path = modules/law
-	url = https://github.com/riga/law.git
-[submodule "modules/six"]
-	path = modules/six
-	url = https://github.com/benjaminp/six
