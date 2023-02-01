@@ -3,59 +3,108 @@
 
 action () {
 
-    if [[ ! -z "${PROD_SETUP}" && "${PROD_SETUP}" == "1" ]]; then
-        2>&1 echo "environment has already been set up"
-        return "1"
+    # do not run the setup twice
+    if [[ "${PROD_SETUP}" = "1" ]]; then
+        echo "production environment has already been set up"
+        return "0"
     fi
-
-
 
     # directory of that script and current working directory
     local shell_is_zsh this_file this_dir
     shell_is_zsh="$( [[ -z "${ZSH_VERSION}" ]] && echo "false" || echo "true" )"
     this_file="$( [[ "${shell_is_zsh}" == "true" ]] && echo "${(%):-%x}" || echo "${BASH_SOURCE[0]:-${0}}" )"
     this_dir="$( cd "$( dirname "${this_file}" )" && pwd )"
+    current_dir="$( pwd )"
 
-    # set project base paths
+    # define important paths of this project as well as storage targets
     export PROD_BASE="${this_dir}"
     export PROD_JOBS_BASE="${PROD_BASE}/jobs"
     export PROD_BUNDLE_BASE="${PROD_BASE}/bundle"
     export PROD_SOFTWARE_BASE="${PROD_BASE}/software"
-    export PROD_CONDA_BASE="${PROD_SOFTWARE_BASE}/conda"
-    export PROD_VENV_BASE="${PROD_SOFTWARE_BASE}/venvs"
-    export PROD_CMSSW_BASE="${PROD_SOFTWARE_BASE}/cmssw"
+    export PROD_SOFTWARE_LOCAL_BASE="${PROD_SOFTWARE_BASE}/local"
 
-    # set environment variables for CMSSW installation
-    export PROD_CMSSW_ENV_NAME="cmssw_default"
-    export PROD_CMSSW_VERSION="CMSSW_10_6_29_patch1"
+    # CMSSW settings (architecture and version)
     export PROD_SCRAM_ARCH="slc7_amd64_gcc700"
-    export PROD_CMSSW_PATH="${PROD_CMSSW_BASE}/${PROD_CMSSW_ENV_NAME}/${PROD_CMSSW_VERSION}"
+    export PROD_CMSSW_VERSION="CMSSW_10_6_29_patch1"
+    export PROD_CMSSW_BASE="${PROD_SOFTWARE_BASE}/cmssw/${PROD_CMSSW_VERSION}"
 
-    # save original paths for binaries and libraries
-    export PROD_ORIG_PATH="${PATH}"
-    export PROD_ORIG_LD_LIBRARY_PATH="${LD_LIBRARY_PATH}"
+    # helper functions for adding python packages and binaries
+    prod_pip_install () {
+        pip install --ignore-installed --no-cache-dir --prefix "${PROD_LOCAL_BASE}" "$@"
+    }
+    export -f prod_pip_install
+
+    prod_add_bin () {
+        if [[ ! -z "${1}" ]]; then
+            export PATH="${1}:${PATH}"
+        fi
+    }
+    export -f prod_add_bin
+
+    prod_add_py () {
+        if [[ ! -z "${1}" ]]; then
+            export PYTHONPATH="${1}:${PYTHONPATH}"
+        fi
+    }
+    export -f prod_add_bin
+
+    # set up CMSSW
+    export SCRAM_ARCH="${PROD_SCRAM_ARCH}"
+    export CMSSW_VERSION="${PROD_CMSSW_VERSION}"
+    export CMSSW_BASE="${PROD_CMSSW_BASE}"
+
+    # install CMSSW if the CMSSW directory doesn't exist
+    if [[ ! -d "${CMSSW_BASE}" ]]; then
+
+        (
+            source "/cvmfs/cms.cern.ch/cmsset_default.sh" "" &&
+            mkdir -p "$( dirname "${CMSSW_BASE}" )" &&
+            scramv1 project CMSSW "${CMSSW_VERSION}" &&
+            cd "${CMSSW_VERSION}" &&
+            eval "$( scramv1 runtime -sh )" &&
+            scram b 
+        ) || return "$?"
+    fi
+
+    # activate CMSSW installation
+    cd "${CMSSW_BASE}/src" || return "$?"
+    eval "$( scramv1 runtime -sh )" || return "$?"
+    cd "${current_dir}" || return "$?"
+
+    # environment variables related to additional software
+    export GLOBUS_THREAD_MODEL="none"
+    export PYTHONWARNINGS="ignore"
     export PROD_ORIG_PYTHONPATH="${PYTHONPATH}"
-    export PROD_ORIG_PYTHON3PATH="${PYTHON3PATH}"
+    export PROD_GFAL_PLUGIN_DIR_ORIG="${GFAL_PLUGIN_DIR}"
+    export PROD_GFAL_PLUGIN_DIR="${PROD_SOFTWARE_LOCAL_BASE}/gfal_plugins"
 
-    # define persistent parts of PATH and PYTHONPATH that should always be prepended to the effective PATH and
-    # PYTHONPATH of the current environment
-    # these parts contain special binaries and libraries that should always be prioritized, e.g. the
-    # 'production/' directory that contains the task definitions
-    export PROD_PREPEND_PATH="${PROD_SOFTWARE_BASE}/local/bin"
-    export PROD_PREPEND_PYTHONPATH="${PROD_BASE}"
+    # install python packages
+    prod_pip_install luigi
+    prod_pip_install law
+    prod_pip_install order
 
-    # provide python environment with conda
-    source "${this_dir}/sandboxes/_setup_conda.sh" "" || return "$?"
+    prod_add_bin "${PROD_SOFTWARE_LOCAL_BASE}/bin"
+    prod_add_py "${PROD_SOFTWARE_LOCAL_BASE}/lib/python2.7/site-packages"
 
-    # law and luigi paths
+    # gfal setup
+    # ckeck if gfal2 bindings are installed
+    local gfal2_bindings_file
+    gfal2_bindings_file="$( python -c "import gfal2; print(gfal2.__file__)" &> /dev/null )"
+    [[ "$?" != "0" ]] && gfal2_bindings_file=""
+
+    if [ ! -z "$gfal2_bindings_file" ]; then
+        ln -s "$gfal2_bindings_file" "$PROD_SOFTWARE_LOCAL_BASE/lib/python2.7/site-packages"
+        export GFAL_PLUGIN_DIR="$PROD_GFAL_PLUGIN_DIR_ORIG"
+        source "$(law location)/contrib/cms/scripts/setup_gfal_plugins.sh" "${PROD_GFAL_PLUGIN_DIR}"
+        unlink "$HGC_GFAL_PLUGIN_DIR/libgfal_plugin_http.so"
+    fi
+    export GFAL_PLUGIN_DIR="${PROD_GFAL_PLUGIN_DIR}"
+
+    # law setup
     export LAW_HOME="${PROD_BASE}/.law"
     export LAW_CONFIG_FILE="${PROD_BASE}/law.cfg"
-    export LUIGI_CONFIG_PATH="${PROD_BASE}/luigi.cfg"
-
-    if [[ "$( which law > /dev/null )" && "$?" == "0" ]]; then
-        source "$( law completion )" || return "$?"
-        law index -q
-    fi
+    source "$( law completion )"
+    law index --verbose
 
     export PROD_SETUP="1"
 }
