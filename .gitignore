@@ -163,14 +163,13 @@ cython_debug/
 .law/
 
 # packages and temporary directory (contains software for example)
-usr/
 
-# output directories
-config/
-data/
+# output and working directories
+_config/
+bundle/
+# data/
+jobs/
+tmp/
 
-# software stack
+# software installations
 software/
-
-# CMSSW release
-CMSSW_*
