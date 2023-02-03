@@ -13,7 +13,14 @@ law.contrib.load("tasks", "wlcg")
 
 class FragmentGeneration(ProcessTask, law.LocalWorkflow):
     cmssw_path = os.path.expandvars("${PROD_CMSSW_BASE}")
-    fragment_template = os.path.expandvars("${PROD_BASE}/inputs/GluGluHToTauTau_MHXXX_pythia8_TuneCP5_cff.py.j2")
+    fragment_template = os.path.abspath(
+        os.path.join(
+            os.path.dirname(__file__),
+            "..",
+            "templates",
+            "GluGluHToTauTau_MHXXX_pythia8_TuneCP5_cff.py.j2",
+        )
+    )
 
     exclude_params_req_get = {"workflow"}
     prefer_params_cli = {"workflow"}
@@ -25,7 +32,9 @@ class FragmentGeneration(ProcessTask, law.LocalWorkflow):
             "Configuration",
             "GenProduction",
             "python",
-            "{filename_prefix:s}_cff.py".format(filename_prefix=_process_inst.get_aux("filename_prefix")),
+            "{filename_prefix:s}_cff.py".format(
+                filename_prefix=_process_inst.get_aux("filename_prefix")
+            ),
             store=self.cmssw_path,
         )
 
@@ -42,7 +51,11 @@ class FragmentGeneration(ProcessTask, law.LocalWorkflow):
 
         # write the fragment content to the output target
         _output.dump(content, formatter="text")
-        self.logger.info("successfully created fragment for process {process:s}".format(process=_process_inst.name))
+        self.logger.info(
+            "successfully created fragment for process {process:s}".format(
+                process=_process_inst.name
+            )
+        )
 
 
 class CompileCMSSW(BaseTask, law.contrib.tasks.RunOnceTask):
@@ -59,7 +72,9 @@ class CompileCMSSW(BaseTask, law.contrib.tasks.RunOnceTask):
             stderr=subprocess.PIPE,
         )
         if ret_code != 0:
-            raise Exception("CMSSW compilation failed with exit code {ret_code}".format(ret_code=ret_code))
+            raise Exception(
+                "CMSSW compilation failed with exit code {ret_code}".format(ret_code=ret_code)
+            )
 
 
 class AODSIMConfigurationTemplate(DatasetTask):
@@ -74,14 +89,18 @@ class AODSIMConfigurationTemplate(DatasetTask):
     def requires(self):
         reqs = {}
         _dataset_inst = self.dataset_inst
-        reqs["fragment"] = FragmentGeneration.req(self, process=_dataset_inst.processes.get_first().name, branch=0)
+        reqs["fragment"] = FragmentGeneration.req(
+            self, process=_dataset_inst.processes.get_first().name, branch=0
+        )
         return reqs
 
     def output(self):
         _dataset_inst = self.dataset_inst
         return self.local_target(
             self.__class__.__name__,
-            "{filename_prefix:s}_cfg.py.j2".format(filename_prefix=_dataset_inst.get_aux("filename_prefix")),
+            "{filename_prefix:s}_cfg.py.j2".format(
+                filename_prefix=_dataset_inst.get_aux("filename_prefix")
+            ),
         )
 
     def run(self):
@@ -94,7 +113,11 @@ class AODSIMConfigurationTemplate(DatasetTask):
         _input_fragment = self.input()["fragment"]
         m = re.match(r"^(.*CMSSW_\d+_\d+_\d+(_[\w\d]+)?(/src)?)/(.*)$", _input_fragment.path)
         if m is None:
-            raise RuntimeError("Fragment path {path:s} has not the expected pattern".format(path=_input_fragment.path))
+            raise RuntimeError(
+                "Fragment path {path:s} has not the expected pattern".format(
+                    path=_input_fragment.path
+                )
+            )
 
         # prepare arguments for the cmsDriver command
         fragment = os.path.relpath(_input_fragment.path, start=m.group(1))
@@ -113,10 +136,17 @@ class AODSIMConfigurationTemplate(DatasetTask):
             cms_driver_args.append("no_exec")
 
         # run the command in a temporary directory
-        tmp_dir = law.LocalDirectoryTarget(is_tmp=True, tmp_dir=os.path.expandvars("${PROD_BASE}/tmp"))
+        tmp_dir = law.LocalDirectoryTarget(
+            is_tmp=True, tmp_dir=os.path.expandvars("${PROD_BASE}/tmp")
+        )
         tmp_dir.touch()
         tmp_python_file = law.LocalFileTarget(os.path.join(tmp_dir.path, tmp_python_filename))
-        popen_kwargs = {"env": os.environ, "cwd": tmp_dir.path, "stdout": subprocess.PIPE, "stderr": subprocess.PIPE}
+        popen_kwargs = {
+            "env": os.environ,
+            "cwd": tmp_dir.path,
+            "stdout": subprocess.PIPE,
+            "stderr": subprocess.PIPE,
+        }
         ret_code, out, err = cms_driver(
             fragment=fragment,
             kwargs=cms_driver_kwargs,
@@ -126,7 +156,9 @@ class AODSIMConfigurationTemplate(DatasetTask):
         )
         if ret_code != 0:
             self.logger.error("cmsDriver command failed")
-            self.logger.debug("Output\n======{out:s}\n\nError\n=====\n{err:s}".format(out=out, err=err))
+            self.logger.debug(
+                "Output\n======{out:s}\n\nError\n=====\n{err:s}".format(out=out, err=err)
+            )
             raise RuntimeError("cmsDriver command failed")
 
         # load configuration content in order to inject some template placeholders
@@ -146,7 +178,9 @@ class AODSIMConfigurationTemplate(DatasetTask):
         # write the config template to the output target
         _output.dump(content, formatter="text")
         self.logger.info(
-            "successfully saved run config template for dataset {dataset:s}".format(dataset=_dataset_inst.name)
+            "successfully saved run config template for dataset {dataset:s}".format(
+                dataset=_dataset_inst.name
+            )
         )
 
 
@@ -187,8 +221,8 @@ class AODSIMConfiguration(DatasetTask, law.LocalWorkflow):
         python_filename = _output.basename
         fileout = "file:{filename:s}".format(filename=os.path.basename(_keys[0]))
 
-        # load the configuration template and replace placeholders for configuration filename, production output file
-        # and number of events
+        # load the configuration template and replace placeholders for configuration filename,
+        # production output file and number of events
         _input_config_template = self.input()["config_template"]
         template = Template(_input_config_template.load(formatter="text"))
         with _input_config_template.open(mode="r") as f:
@@ -200,8 +234,9 @@ class AODSIMConfiguration(DatasetTask, law.LocalWorkflow):
         )
 
         # add luminosity block modifier to the end of the configuration file
-        content += "\n\nprocess.source.firstLuminosityBlock = cms.untracked.uint32(1 + {file_index:d})".format(
-            file_index=_file_index
+        content += (
+            "\n\nprocess.source.firstLuminosityBlock = cms.untracked.uint32(1 + "
+            + "{file_index:d})".format(file_index=_file_index)
         )
 
         # write useable config to the output target
@@ -249,8 +284,11 @@ class AODSIMProduction(DatasetTask, HTCondorWorkflow, law.LocalWorkflow):
         # get the config file
         _input_config = self.input()["config"]
 
-        # run the production in a temporary directory, copy input files before starting the production
-        tmp_dir = law.LocalDirectoryTarget(is_tmp=True, tmp_dir=os.path.expandvars("${PROD_BASE}/tmp"))
+        # run the production in a temporary directory, copy input files before starting the
+        # production
+        tmp_dir = law.LocalDirectoryTarget(
+            is_tmp=True, tmp_dir=os.path.expandvars("${PROD_BASE}/tmp")
+        )
         tmp_dir.touch()
         tmp_config = law.LocalFileTarget(os.path.join(tmp_dir.path, _input_config.basename))
         tmp_output = law.LocalFileTarget(os.path.join(tmp_dir.path, _output.basename))

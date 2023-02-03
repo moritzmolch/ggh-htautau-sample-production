@@ -56,7 +56,9 @@ for higgs_mass in range(50, 250, 1):
         label="$\\mathrm{g}\\mathrm{g} \\to \\mathrm{H}({higgs_mass:d}\\,\\mathrm{GeV}) \\to \\tau\\tau$",
         aux=dict(
             higgs_mass=higgs_mass,
-            filename_prefix="GluGluHToTauTau_MH{higgs_mass:d}_pythia8_TuneCP5".format(higgs_mass=higgs_mass),
+            filename_prefix="GluGluHToTauTau_MH{higgs_mass:d}_pythia8_TuneCP5".format(
+                higgs_mass=higgs_mass
+            ),
         ),
     )
     i += 1
@@ -67,7 +69,9 @@ for higgs_mass in range(250, 805, 5):
         label="$\\mathrm{g}\\mathrm{g} \\to \\mathrm{H}({higgs_mass:d}\\,\\mathrm{GeV}) \\to \\tau\\tau$",
         aux=dict(
             higgs_mass=higgs_mass,
-            filename_prefix="GluGluHToTauTau_MH{higgs_mass:d}_pythia8_TuneCP5".format(higgs_mass=higgs_mass),
+            filename_prefix="GluGluHToTauTau_MH{higgs_mass:d}_pythia8_TuneCP5".format(
+                higgs_mass=higgs_mass
+            ),
         ),
     )
     i += 5
@@ -84,9 +88,13 @@ for cfg in configs:
         n_files = 6
         n_events_per_file = 2000
         d = od.Dataset(
-            name="ggh_htautau_mh{higgs_mass:d}_{step:s}".format(higgs_mass=higgs_mass, step=cfg.get_aux("step")),
+            name="ggh_htautau_mh{higgs_mass:d}_{step:s}".format(
+                higgs_mass=higgs_mass, step=cfg.get_aux("step")
+            ),
             id=i_ds + i_cfg,
-            processes=[cfg.get_process("ggh_htautau_mh{higgs_mass:d}".format(higgs_mass=higgs_mass))],
+            processes=[
+                cfg.get_process("ggh_htautau_mh{higgs_mass:d}".format(higgs_mass=higgs_mass))
+            ],
             keys=[
                 "/{step:s}/GluGluHToTauTau_MH{higgs_mass:d}_pythia8_TuneCP5_{step:s}_{file_index:d}.root".format(
                     step=cfg.get_aux("step"), higgs_mass=higgs_mass, file_index=i
@@ -108,9 +116,13 @@ for cfg in configs:
         n_files = 15
         n_events_per_file = 4000
         d = od.Dataset(
-            name="ggh_htautau_mh{higgs_mass:d}_{step:s}".format(higgs_mass=higgs_mass, step=cfg.get_aux("step")),
+            name="ggh_htautau_mh{higgs_mass:d}_{step:s}".format(
+                higgs_mass=higgs_mass, step=cfg.get_aux("step")
+            ),
             id=i_ds + i_cfg,
-            processes=[cfg.get_process("ggh_htautau_mh{higgs_mass:d}".format(higgs_mass=higgs_mass))],
+            processes=[
+                cfg.get_process("ggh_htautau_mh{higgs_mass:d}".format(higgs_mass=higgs_mass))
+            ],
             keys=[
                 "/{step:s}/GluGluHToTauTau_MH{higgs_mass:d}_pythia8_TuneCP5_{step:s}_{file_index:d}.root".format(
                     step=cfg.get_aux("step"), higgs_mass=higgs_mass, file_index=i

@@ -14,7 +14,9 @@ def _build_cms_driver_command(
 
     # check if required arguments have been passed
     if _fragment == "" and _kwargs.get("filein", "") == "":
-        raise ValueError("If fragment is empty the argument 'filein' in the 'kwargs' mapping has to be set.")
+        raise ValueError(
+            "If fragment is empty the argument 'filein' in the 'kwargs' mapping has to be set."
+        )
 
     # construct the cmsDriver command
     cmd = ["cmsDriver.py"]

@@ -28,7 +28,9 @@ class BaseTask(law.Task):
 
     def remote_target(self, *path, **kwargs):
         target_class = (
-            law.contrib.wlcg.WLCGDirectoryTarget if kwargs.pop("dir", False) else law.contrib.wlcg.WLCGFileTarget
+            law.contrib.wlcg.WLCGDirectoryTarget
+            if kwargs.pop("dir", False)
+            else law.contrib.wlcg.WLCGFileTarget
         )
         return target_class(self.remote_path(*path))
 
@@ -80,7 +82,9 @@ class DatasetTask(AnalysisTask):
 
 class BundleCMSSW(BaseTask, law.contrib.tasks.TransferLocalFile, law.contrib.cms.BundleCMSSW):
     default_store = os.path.expandvars("${PROD_BUNDLE_BASE}")
-    replicas = luigi.IntParameter(default=10, description="number of replica archives to generate; default is 10")
+    replicas = luigi.IntParameter(
+        default=10, description="number of replica archives to generate; default is 10"
+    )
 
     cmssw_checksumming = False
     exclude = "^src/tmp"
@@ -107,16 +111,22 @@ class BundleCMSSW(BaseTask, law.contrib.tasks.TransferLocalFile, law.contrib.cms
 
         # log the size
         self.publish_message(
-            "bundled CMSSW archive, size is {:.2f} {}".format(*law.util.human_bytes(bundle.stat().st_size))
+            "bundled CMSSW archive, size is {:.2f} {}".format(
+                *law.util.human_bytes(bundle.stat().st_size)
+            )
         )
 
         # transfer replica archives
         self.transfer(bundle)
 
 
-class BundleProductionRepository(BaseTask, law.contrib.tasks.TransferLocalFile, law.contrib.git.BundleGitRepository):
+class BundleProductionRepository(
+    BaseTask, law.contrib.tasks.TransferLocalFile, law.contrib.git.BundleGitRepository
+):
     default_store = os.path.expandvars("${PROD_BUNDLE_BASE}")
-    replicas = luigi.IntParameter(default=10, description="number of replica archives to generate; default is 10")
+    replicas = luigi.IntParameter(
+        default=10, description="number of replica archives to generate; default is 10"
+    )
 
     exclude_files = [
         ".law",
@@ -154,7 +164,9 @@ class BundleProductionRepository(BaseTask, law.contrib.tasks.TransferLocalFile, 
 
         # log the size
         self.publish_message(
-            "bundled repository archive, size is {:.2f} {}".format(*law.util.human_bytes(bundle.stat().st_size))
+            "bundled repository archive, size is {:.2f} {}".format(
+                *law.util.human_bytes(bundle.stat().st_size)
+            )
         )
 
         # transfer replica archives
@@ -168,9 +180,15 @@ class HTCondorWorkflow(law.contrib.htcondor.HTCondorWorkflow):
 
     htcondor_request_cpus = luigi.IntParameter(default=1, significant=False)
     htcondor_request_gpus = luigi.IntParameter(default=0, significant=False)
-    htcondor_request_memory = luigi.Parameter(default=2000, significant=False, description="(in MB)")
-    htcondor_request_walltime = luigi.IntParameter(default=3600, significant=False, description="(in s)")
-    htcondor_request_disk = luigi.Parameter(default=200000, significant=False, description="(in KB)")
+    htcondor_request_memory = luigi.Parameter(
+        default=2000, significant=False, description="(in MB)"
+    )
+    htcondor_request_walltime = luigi.IntParameter(
+        default=3600, significant=False, description="(in s)"
+    )
+    htcondor_request_disk = luigi.Parameter(
+        default=200000, significant=False, description="(in KB)"
+    )
     htcondor_remote_job = luigi.BoolParameter(default=False, significant=False)
 
     htcondor_accounting_group = luigi.Parameter(default="cms.higgs", significant=False)
@@ -221,7 +239,9 @@ class HTCondorWorkflow(law.contrib.htcondor.HTCondorWorkflow):
 
         # append law's wlcg tool script to the collection of input files
         # needed for setting up the software environment
-        config.input_files["wlcg_tools"] = law.util.law_src_path("contrib/wlcg/scripts/law_wlcg_tools.sh")
+        config.input_files["wlcg_tools"] = law.util.law_src_path(
+            "contrib/wlcg/scripts/law_wlcg_tools.sh"
+        )
 
         # contents of the HTCondor submission file
 
@@ -235,16 +255,30 @@ class HTCondorWorkflow(law.contrib.htcondor.HTCondorWorkflow):
         # enforce that STDOUT and STDERR are not streamed to the submission machine
         # while the job is running
         config.custom_content.append(
-            ("log", os.path.join(log_dir, "log_{0:d}_{1:d}To{2:d}.txt".format(job_num, branches[0], branches[-1])))
+            (
+                "log",
+                os.path.join(
+                    log_dir, "log_{0:d}_{1:d}To{2:d}.txt".format(job_num, branches[0], branches[-1])
+                ),
+            )
         )
         config.custom_content.append(
             (
                 "output",
-                os.path.join(log_dir, "output_{0:d}_{1:d}To{2:d}.txt".format(job_num, branches[0], branches[-1])),
+                os.path.join(
+                    log_dir,
+                    "output_{0:d}_{1:d}To{2:d}.txt".format(job_num, branches[0], branches[-1]),
+                ),
             )
         )
         config.custom_content.append(
-            ("error", os.path.join(log_dir, "error_{0:d}_{1:d}To{2:d}.txt".format(job_num, branches[0], branches[-1])))
+            (
+                "error",
+                os.path.join(
+                    log_dir,
+                    "error_{0:d}_{1:d}To{2:d}.txt".format(job_num, branches[0], branches[-1]),
+                ),
+            )
         )
         config.custom_content.append(("stream_output", False))
         config.custom_content.append(("stream_error", False))
