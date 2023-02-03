@@ -1,220 +1,85 @@
 import law
 import luigi
 import os
-import subprocess
+
+from production.config import ggh_htautau_production
 
 
 law.contrib.load("cms", "git", "htcondor", "tasks", "wlcg")
 
 
 class BaseTask(law.Task):
-
-    store = os.path.expandvars("${PROD_BASE}/data")
+    default_store = os.path.expandvars("${PROD_BASE}/data")
 
     def __init__(self, *args, **kwargs):
         super(BaseTask, self).__init__(*args, **kwargs)
 
-    def local_path(self, *path):
-        parts = (self.store,) + path
+    def local_path(self, *path, **kwargs):
+        store = kwargs.pop("store", self.default_store)
+        parts = (store,) + path
         return os.path.join(*parts)
 
     def local_target(self, *path, **kwargs):
         target_class = law.LocalDirectoryTarget if kwargs.pop("dir", False) else law.LocalFileTarget
-        return target_class(self.local_path(*path))
+        return target_class(self.local_path(*path, **kwargs))
 
     def remote_path(self, *path):
         return os.path.join(*path)
 
     def remote_target(self, *path, **kwargs):
-        target_class = law.WLCGDirectoryTarget if kwargs.pop("dir", False) else law.WLCGFileTarget
+        target_class = (
+            law.contrib.wlcg.WLCGDirectoryTarget if kwargs.pop("dir", False) else law.contrib.wlcg.WLCGFileTarget
+        )
         return target_class(self.remote_path(*path))
 
 
-class CMSDriverTask(law.SandboxTask):
+class AnalysisTask(BaseTask):
+    config = luigi.Parameter(default="mc_ul18_fastsim_aodsim")
 
-    sandbox = "bash::${PROD_BASE}/sandboxes/cmssw_default.sh"
+    def __init__(self, *args, **kwargs):
+        super(AnalysisTask, self).__init__(*args, **kwargs)
+        self.analysis_inst = ggh_htautau_production
+        self.config_inst = self.analysis_inst.get_config(self.config)
 
-    # cms_driver_python_filename = luigi.Parameter(
-    #    description="name of the python configuration file",
-    # )
 
-    cms_driver_fragment = luigi.Parameter(
-        default=law.NO_STR,
-        description="name of the fragment that serves as template for the configuration of the root production task",
-    )
-    cms_driver_filein = luigi.Parameter(
-        default=law.NO_STR,
-        description="input ROOT file; can have a protocol prefix, e.g. 'file:root_input_file.root'",
-    )
-    cms_driver_fileout = luigi.Parameter(
-        description="input ROOT file; can have a protocol prefix, e.g. 'file:root_input_file.root'",
-    )
+class ProcessTask(AnalysisTask):
+    process = luigi.Parameter(default="ggh_htautau")
 
-    cms_driver_era = luigi.Parameter(
-        description="Tag for the data-taking period",
-    )
-    cms_driver_conditions = luigi.Parameter(
-        description="Tag for the data-taking conditions that affect alignment and calibration",
-    )
-    cms_driver_beamspot = luigi.Parameter(
-        description="Tag for the beamspot scenario",
-    )
+    def __init__(self, *args, **kwargs):
+        super(ProcessTask, self).__init__(*args, **kwargs)
+        self.process_inst = self.config_inst.get_process(self.process)
 
-    cms_driver_step = luigi.Parameter(
-        description="Simulation steps that are performed during one part of the simulation chain",
-    )
-    cms_driver_datatier = luigi.Parameter(
-        description="Data tier of the chain step",
-    )
-    cms_driver_eventcontent = luigi.Parameter(
-        description="Format in which the events are stord in the ROOT output file"
-    )
+    def create_branch_map(self):
+        processes = self.process_inst.get_leaf_processes()
+        branch_map = {}
+        for i, p in enumerate(processes):
+            branch_map[i] = {"process_inst": p}
+        if len(branch_map) == 0:
+            branch_map[0] = {"process_inst": self.process_inst}
+        return branch_map
 
-    cms_driver_proc_modifiers = luigi.Parameter(
-        default=law.NO_STR,
-        description="Tag for processing modifications, e.g. for premixing or during the miniAOD step",
-    )
-    cms_driver_datamix = luigi.Parameter(
-        default=law.NO_STR,
-        description="Type of pileup mixing",
-    )
-    cms_driver_pileup_input = luigi.Parameter(
-        default=law.NO_STR,
-        description="Input file for pileup mixing",
-    )
 
-    cms_driver_geometry = luigi.Parameter(
-        default=law.NO_STR,
-        description="Selection of the detector geometry description",
-    )
+class DatasetTask(AnalysisTask):
+    dataset = luigi.Parameter()
 
-    cms_driver_fast = luigi.BoolParameter(
-        default=False,
-        description="Run the CMS Fast Simulation instead of the full detector simulation with GEANT",
-    )
-    cms_driver_mc = luigi.BoolParameter(
-        default=False,
-        description="Declare processing of Monte Carlo data",
-    )
+    def __init__(self, *args, **kwargs):
+        super(DatasetTask, self).__init__(*args, **kwargs)
+        self.dataset_inst = self.config_inst.get_dataset(self.dataset)
 
-    cms_driver_add_monitoring = luigi.BoolParameter(
-        default=False,
-        description="Activate monitoring tools when running the configuration",
-    )
-    cms_driver_use_random_service_helper = luigi.BoolParameter(
-        default=False,
-        description="Provide random seed to event generators",
-    )
-    cms_driver_run_unscheduled = luigi.BoolParameter(
-        default=False,
-        description="Run the production unscheduled",
-    )
-
-    cms_driver_number_of_events = luigi.IntParameter(
-        default=-1,
-        description="Number of events",
-    )
-
-    def build_command(self, python_filename):
-        command = ["cmsDriver.py"]
-        # check if either fragment or input file are set
-        if self.cms_driver_fragment == law.NO_STR and self.cms_driver_filein == law.NO_STR:
-            raise ValueError("Command cannot be constructed: Either 'fragment' or 'filein' must be set.")
-
-        # the cms driver command
-        cmd = [
-            "cmsDriver.py",
-        ]
-
-        # if fragment is defined add the fragment as positional argument
-        if self.cms_driver_fragment != law.NO_STR:
-            cmd.append(self.cms_driver_fragment)
-
-        # set the name of the configuration file
-        cmd += ["--python_filename", python_filename]
-
-        # set the input file for the production
-        if self.cms_driver_filein != law.NO_STR:
-            cmd += ["--filein", self.cms_driver_filein]
-
-        # set the output file of the production
-        cmd += ["--fileout", self.cms_driver_fileout]
-
-        # add customization flags (monotoring and random seed)
-        if self.cms_driver_add_monitoring:
-            cmd += ["--customise", "Configuration/DataProcessing/Utils.addMonitoring"]
-        if self.cms_driver_use_random_service_helper:
-            cmd += [
-                "--customise_commands",
-                "from IOMC.RandomEngine.RandomServiceHelper import RandomNumberServiceHelper;randSvc = "
-                + "RandomNumberServiceHelper(process.RandomNumberGeneratorService);randSvc.populate()",
-            ]
-
-        # data-taking conditions (required)
-        cmd += ["--era", self.cms_driver_era]
-        cmd += ["--conditions", self.cms_driver_conditions]
-        cmd += ["--beamspot", self.cms_driver_beamspot]
-
-        # step and event format definition (required)
-        cmd += ["--step", self.cms_driver_step]
-        cmd += ["--datatier", self.cms_driver_datatier]
-        cmd += ["--eventcontent", self.cms_driver_eventcontent]
-
-        # process modification tag (optional)
-        if self.cms_driver_proc_modifiers != law.NO_STR:
-            cmd += ["--procModifiers", self.cms_driver_proc_modifiers]
-
-        # premixing and pileup (optional)
-        if self.cms_driver_datamix != law.NO_STR:
-            cmd += ["--datamix", self.cms_driver_datamix]
-        if self.cms_driver_pileup_input != law.NO_STR:
-            cmd += ["--pileup_input", self.cms_driver_pileup_input]
-
-        # detector geometry (optional)
-        if self.cms_driver_geometry != law.NO_STR:
-            cmd += ["--geometry", self.cms_driver_geometry]
-
-        # fast simulation of the CMS detector (optional)
-        if self.cms_driver_fast:
-            cmd.append("--fast")
-
-        # generation and processing of Monte Carlo data (optional)
-        if self.cms_driver_mc:
-            cmd.append("--mc")
-
-        # run unscheduled production
-        if self.cms_driver_run_unscheduled:
-            cmd.append("--runUnscheduled")
-
-        # do not execute the simulation while creating the configuration
-        # this flag is always set here as the production should not be started in the configuration task
-        cmd.append("--no_exec")
-
-        # set number of events
-        cmd += ["-n", str(self.cms_driver_number_of_events)]
-
-        return cmd
-
-    def run_command(self, command, output):
-        self.logger.debug(f"sandbox environment: {self.env}")
-
-        # generate the configuration file
-        ret_code, out, err = law.util.interruptable_popen(
-            command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, env=self.env, cwd=output.dirname
-        )
-        if ret_code != 0:
-            raise RuntimeError(
-                "Command {cmd} failed with exit code {ret_code:d}".format(cmd=command, ret_code=ret_code)
-                + "Output: {out:s}".format(out=out)
-                + "Error: {err:s}".format(err=err)
-            )
-        elif not output.exists():
-            raise RuntimeError("Output file {output:s} does not exist".format(output=output.path))
+    def create_branch_map(self):
+        branch_map = {}
+        for i in range(self.dataset_inst.n_files):
+            branch_map[i] = {
+                "dataset_inst": self.dataset_inst,
+                "file_index": i,
+                "keys": [self.dataset_inst.keys[i]],
+                "n_events": self.dataset_inst.get_aux("n_events_per_file"),
+            }
+        return branch_map
 
 
 class BundleCMSSW(BaseTask, law.contrib.tasks.TransferLocalFile, law.contrib.cms.BundleCMSSW):
-
-    store = os.path.expandvars("${PROD_BUNDLE_BASE}")
+    default_store = os.path.expandvars("${PROD_BUNDLE_BASE}")
     replicas = luigi.IntParameter(default=10, description="number of replica archives to generate; default is 10")
 
     cmssw_checksumming = False
@@ -222,7 +87,7 @@ class BundleCMSSW(BaseTask, law.contrib.tasks.TransferLocalFile, law.contrib.cms
     task_namespace = None
 
     def get_cmssw_path(self):
-        return os.path.expandvars("${PROD_CMSSW_PATH}")
+        return os.path.expandvars("${PROD_CMSSW_BASE}")
 
     def single_output(self):
         return self.local_target("{0:s}.tgz".format(os.path.basename(self.get_cmssw_path())))
@@ -236,7 +101,6 @@ class BundleCMSSW(BaseTask, law.contrib.tasks.TransferLocalFile, law.contrib.cms
 
     @law.decorator.safe_output
     def run(self):
-
         # bundle repository
         bundle = law.LocalFileTarget(is_tmp="tgz", tmp_dir=os.path.expandvars("${PROD_BASE}/tmp"))
         self.bundle(bundle)
@@ -251,11 +115,22 @@ class BundleCMSSW(BaseTask, law.contrib.tasks.TransferLocalFile, law.contrib.cms
 
 
 class BundleProductionRepository(BaseTask, law.contrib.tasks.TransferLocalFile, law.contrib.git.BundleGitRepository):
-
-    store = os.path.expandvars("${PROD_BUNDLE_BASE}")
+    default_store = os.path.expandvars("${PROD_BUNDLE_BASE}")
     replicas = luigi.IntParameter(default=10, description="number of replica archives to generate; default is 10")
 
-    exclude_files = [".law", "bundle", "config", "jobs", "software", "tmp", "luigi.cfg.old", "*~", "*.pyc"]
+    exclude_files = [
+        ".law",
+        ".mypy_cache",
+        "bundle",
+        "jobs",
+        "modules",
+        "software",
+        "tmp",
+        "venv",
+        ".pre-commit-config.yaml",
+        "luigi.cfg.old",
+        "__pycache__" "*.pyc",
+    ]
     task_namespace = None
 
     def get_repo_path(self):
@@ -273,7 +148,6 @@ class BundleProductionRepository(BaseTask, law.contrib.tasks.TransferLocalFile, 
 
     @law.decorator.safe_output
     def run(self):
-
         # bundle repository
         bundle = law.LocalFileTarget(is_tmp="tgz", tmp_dir=os.path.expandvars("${PROD_BASE}/tmp"))
         self.bundle(bundle)
@@ -287,53 +161,7 @@ class BundleProductionRepository(BaseTask, law.contrib.tasks.TransferLocalFile, 
         self.transfer(bundle)
 
 
-class BundleConda(BaseTask, law.contrib.tasks.TransferLocalFile):
-
-    store = os.path.expandvars("${PROD_BUNDLE_BASE}")
-    replicas = luigi.IntParameter(default=10, description="number of replica archives to generate; default is 10")
-
-    task_namespace = None
-
-    def get_conda_path(self):
-        return os.path.expandvars("${PROD_CONDA_BASE}")
-
-    def single_output(self):
-        return self.local_target("{0:s}.tgz".format(os.path.basename(self.get_conda_path())))
-
-    def get_file_pattern(self):
-        path = os.path.expandvars(os.path.expanduser(self.single_output().path))
-        return self.get_replicated_path(path, i=None if self.replicas <= 0 else "*")
-
-    def output(self):
-        return law.contrib.tasks.TransferLocalFile.output(self)
-
-    @law.decorator.safe_output
-    def run(self):
-
-        # bundle repository with conda-pack
-        bundle = law.LocalFileTarget(is_tmp="tgz", tmp_dir=os.path.expandvars("${PROD_BASE}/tmp"))
-        cmd = ["conda-pack", "--prefix", self.get_conda_path(), "--output", bundle.path]
-        ret_code, out, err = law.util.interruptable_popen(
-            cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, env=os.environ
-        )
-        if ret_code != 0:
-            raise Exception(
-                "conda-pack failed with exit code {0:d}".format(ret_code)
-                + "\nOutput:\n{0:s}".format(out)
-                + "\nError:\n{0:s}".format(err)
-            )
-
-        # log the size
-        self.publish_message(
-            "bundled conda archive, size is {:.2f} {}".format(*law.util.human_bytes(bundle.stat().st_size))
-        )
-
-        # transfer replica archives
-        self.transfer(bundle)
-
-
 class HTCondorWorkflow(law.contrib.htcondor.HTCondorWorkflow):
-
     htcondor_universe = luigi.Parameter(default="docker", significant=False)
     htcondor_docker_image = luigi.Parameter(default="mschnepf/slc7-condocker", significant=False)
     htcondor_requirements = luigi.Parameter(default=law.NO_STR, significant=False)
@@ -368,7 +196,6 @@ class HTCondorWorkflow(law.contrib.htcondor.HTCondorWorkflow):
         reqs = law.contrib.htcondor.HTCondorWorkflow.htcondor_workflow_requires(self)
         reqs["repo"] = BundleProductionRepository.req(self, replicas=3)
         reqs["cmssw"] = BundleCMSSW.req(self, replicas=3)
-        reqs["conda"] = BundleConda.req(self, replicas=3)
         return reqs
 
     def htcondor_output_directory(self):
@@ -386,12 +213,17 @@ class HTCondorWorkflow(law.contrib.htcondor.HTCondorWorkflow):
         return os.path.expandvars("${PROD_BASE}/production/tasks/remote_bootstrap.sh")
 
     def htcondor_job_config(self, config, job_num, branches):
+        # create directory for log files if it doesn't exist
+        log_dir = os.path.join(self.htcondor_output_directory().path, "logs")
+        log_target = law.LocalDirectoryTarget(log_dir)
+        if not log_target.exists():
+            log_target.touch()
 
         # append law's wlcg tool script to the collection of input files
         # needed for setting up the software environment
         config.input_files["wlcg_tools"] = law.util.law_src_path("contrib/wlcg/scripts/law_wlcg_tools.sh")
 
-        ## contents of the HTCondor submission file
+        # contents of the HTCondor submission file
 
         # job environment: docker image and requirements
         # config.custom_content.append(("universe", self.htcondor_universe))
@@ -399,10 +231,9 @@ class HTCondorWorkflow(law.contrib.htcondor.HTCondorWorkflow):
         if self.htcondor_requirements != law.NO_STR:
             config.custom_content.append(("requirements", self.htcondor_requirements))
 
-        # log files; enforce that STDOUT and STDERR are not streamed to the submission machine
+        # set paths for log files
+        # enforce that STDOUT and STDERR are not streamed to the submission machine
         # while the job is running
-        # (log files might automatically be set by HTCondorJobFileFactory)
-        log_dir = os.path.join(self.htcondor_output_directory().path, "logs")
         config.custom_content.append(
             ("log", os.path.join(log_dir, "log_{0:d}_{1:d}To{2:d}.txt".format(job_num, branches[0], branches[-1])))
         )
@@ -445,16 +276,9 @@ class HTCondorWorkflow(law.contrib.htcondor.HTCondorWorkflow):
         # render variables in bootstrap script
         config.render_variables["user"] = os.environ["USER"]
 
-        config.render_variables["prod_conda_base"] = os.path.relpath(
-            os.environ["PROD_CONDA_BASE"], os.environ["PROD_BASE"]
-        )
         uris, pattern = get_bundle_info(reqs["repo"])
         config.render_variables["prod_repo_uris"] = uris
         config.render_variables["prod_repo_pattern"] = pattern
-
-        uris, pattern = get_bundle_info(reqs["conda"])
-        config.render_variables["prod_conda_uris"] = uris
-        config.render_variables["prod_conda_pattern"] = pattern
 
         uris, pattern = get_bundle_info(reqs["cmssw"])
         config.render_variables["prod_cmssw_uris"] = uris

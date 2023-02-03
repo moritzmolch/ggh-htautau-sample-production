@@ -30,7 +30,7 @@ action () {
 
     # helper functions for adding python packages and binaries
     prod_pip_install () {
-        pip install --ignore-installed --no-cache-dir --prefix "${PROD_LOCAL_BASE}" "$@"
+        pip install --ignore-installed --no-cache-dir --prefix "${PROD_SOFTWARE_LOCAL_BASE}" "$@"
     }
     export -f prod_pip_install
 
@@ -55,10 +55,10 @@ action () {
 
     # install CMSSW if the CMSSW directory doesn't exist
     if [[ ! -d "${CMSSW_BASE}" ]]; then
-
         (
             source "/cvmfs/cms.cern.ch/cmsset_default.sh" "" &&
             mkdir -p "$( dirname "${CMSSW_BASE}" )" &&
+            cd "$( dirname "${CMSSW_BASE}" )" &&
             scramv1 project CMSSW "${CMSSW_VERSION}" &&
             cd "${CMSSW_VERSION}" &&
             eval "$( scramv1 runtime -sh )" &&
@@ -67,38 +67,44 @@ action () {
     fi
 
     # activate CMSSW installation
+    source "/cvmfs/cms.cern.ch/cmsset_default.sh" "" &&
     cd "${CMSSW_BASE}/src" || return "$?"
     eval "$( scramv1 runtime -sh )" || return "$?"
     cd "${current_dir}" || return "$?"
 
     # environment variables related to additional software
-    export GLOBUS_THREAD_MODEL="none"
     export PYTHONWARNINGS="ignore"
     export PROD_ORIG_PYTHONPATH="${PYTHONPATH}"
-    export PROD_GFAL_PLUGIN_DIR_ORIG="${GFAL_PLUGIN_DIR}"
-    export PROD_GFAL_PLUGIN_DIR="${PROD_SOFTWARE_LOCAL_BASE}/gfal_plugins"
 
     # install python packages
-    prod_pip_install luigi
-    prod_pip_install law
-    prod_pip_install order
+    if [[ ! -d "${PROD_SOFTWARE_LOCAL_BASE}" ]]; then
+        (
+            mkdir -p "${PROD_SOFTWARE_LOCAL_BASE}" &&
+            prod_pip_install law &&
+            prod_pip_install order
+        ) || return "$?"
+    fi
 
     prod_add_bin "${PROD_SOFTWARE_LOCAL_BASE}/bin"
     prod_add_py "${PROD_SOFTWARE_LOCAL_BASE}/lib/python2.7/site-packages"
 
-    # gfal setup
-    # ckeck if gfal2 bindings are installed
-    local gfal2_bindings_file
-    gfal2_bindings_file="$( python -c "import gfal2; print(gfal2.__file__)" &> /dev/null )"
-    [[ "$?" != "0" ]] && gfal2_bindings_file=""
-
-    if [ ! -z "$gfal2_bindings_file" ]; then
-        ln -s "$gfal2_bindings_file" "$PROD_SOFTWARE_LOCAL_BASE/lib/python2.7/site-packages"
-        export GFAL_PLUGIN_DIR="$PROD_GFAL_PLUGIN_DIR_ORIG"
-        source "$(law location)/contrib/cms/scripts/setup_gfal_plugins.sh" "${PROD_GFAL_PLUGIN_DIR}"
-        unlink "$HGC_GFAL_PLUGIN_DIR/libgfal_plugin_http.so"
+    # VOMS proxy settings
+    export GLOBUS_THREAD_MODEL="none"
+    export X509_CERT_DIR="/cvmfs/grid.cern.ch/etc/grid-security/certificates"
+    export X509_VOMS_DIR="/cvmfs/grid.cern.ch/etc/grid-security/vomsdir"
+    if [[ $( id -u ) && "$?" = "0" ]]; then
+        user_id="$( id -u )"
+        export X509_USER_PROXY="${X509_USER_PROXY:-/tmp/x509up_u${user_id}}"
     fi
-    export GFAL_PLUGIN_DIR="${PROD_GFAL_PLUGIN_DIR}"
+    export VOMS_USERCONF="/cvmfs/grid.cern.ch/etc/grid-security/vomses"
+
+    ## GFAL2 setup
+    local grid_base="/cvmfs/grid.cern.ch/centos7-ui-4.0.3-1_umd4v1"
+    export GFAL_CONFIG_DIR="${grid_base}/etc/gfal2.d"
+    export GFAL_PLUGIN_DIR="${grid_base}/usr/lib64/gfal2-plugins"
+    export LD_LIBRARY_PATH="${LD_LIBRARY_PATH}:${grid_base}/usr/lib64:${grid_base}/usr/lib"
+    export PATH="${PATH}:${grid_base}/usr/bin:${grid_base}/usr/sbin"
+    export PYTHONPATH="${PYTHONPATH}:${grid_base}/usr/lib64/python2.7/site-packages:${grid_base}/usr/lib/python2.7/site-packages"
 
     # law setup
     export LAW_HOME="${PROD_BASE}/.law"

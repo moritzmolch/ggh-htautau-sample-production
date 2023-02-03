@@ -1,145 +1,140 @@
-import datetime
-import time
 from jinja2 import Template
 import law
-import luigi
+import law.contrib.wlcg
 import os
 import re
 import subprocess
-import sys
 
-from production.tasks.base import BaseTask, CMSDriverTask, HTCondorWorkflow
+from production.tasks.base import BaseTask, ProcessTask, DatasetTask, HTCondorWorkflow
+from production.util.cms import cms_driver, cms_run
+
+law.contrib.load("tasks", "wlcg")
 
 
-law.contrib.load("wlcg")
+class FragmentGeneration(ProcessTask, law.LocalWorkflow):
+    cmssw_path = os.path.expandvars("${PROD_CMSSW_BASE}")
+    fragment_template = os.path.expandvars("${PROD_BASE}/inputs/GluGluHToTauTau_MHXXX_pythia8_TuneCP5_cff.py.j2")
 
-
-class FragmentGeneration(BaseTask):
-
-    cmssw_path = luigi.Parameter()
-    fragment_template_path = luigi.Parameter()
-
-    higgs_mass = luigi.FloatParameter()
-
-    def local_path(self, *path):
-        parts = (self.cmssw_path,) + path
-        return os.path.join(*parts)
+    exclude_params_req_get = {"workflow"}
+    prefer_params_cli = {"workflow"}
 
     def output(self):
-        higgs_mass_str = (
-            str(int(self.higgs_mass))
-            if int(self.higgs_mass) == self.higgs_mass
-            else str(self.higgs_mass).replace(".", "p")
-        )
+        _process_inst = self.branch_data["process_inst"]
         return self.local_target(
             "src",
             "Configuration",
             "GenProduction",
             "python",
-            "GluGluHToTauTau_MH{higgs_mass:s}_pythia8_TuneCP5_cff.py".format(higgs_mass=higgs_mass_str),
+            "{filename_prefix:s}_cff.py".format(filename_prefix=_process_inst.get_aux("filename_prefix")),
+            store=self.cmssw_path,
         )
 
     def run(self):
-        # get the output
+        # get the output and the process instance of this branch
         _output = self.output()
-        self.logger.info("creating fragment at {output:s}".format(output=_output.path))
+        _process_inst = self.branch_data["process_inst"]
 
         # load template and replace placeholders
-        _fragment_template = law.LocalFileTarget(self.fragment_template_path)
+        _fragment_template = law.LocalFileTarget(self.fragment_template)
         with _fragment_template.open(mode="r") as f:
             template = Template(f.read())
-        content = template.render(higgs_mass=self.higgs_mass)
+        content = template.render(higgs_mass=_process_inst.get_aux("higgs_mass"))
 
         # write the fragment content to the output target
         _output.dump(content, formatter="text")
-        self.logger.info("successfully saved output to {output:s}".format(output=_output.path))
+        self.logger.info("successfully created fragment for process {process:s}".format(process=_process_inst.name))
 
 
-class CompileCMSSWWithFragments(BaseTask, law.SandboxTask):
-
-    cmssw_path = luigi.Parameter()
-
-    sandbox = "bash::${PROD_BASE}/sandboxes/cmssw_default.sh"
-
-    def requires(self):
-        reqs = []
-        for higgs_mass in range(50, 250, 1):
-            reqs.append(FragmentGeneration.req(self, higgs_mass=higgs_mass, cmssw_path=self.cmssw_path))
-        for higgs_mass in range(250, 805, 5):
-            reqs.append(FragmentGeneration.req(self, higgs_mass=higgs_mass, cmssw_path=self.cmssw_path))
-        return reqs
+class CompileCMSSW(BaseTask, law.contrib.tasks.RunOnceTask):
+    cmssw_path = os.path.expandvars("${PROD_CMSSW_BASE}")
 
     def run(self):
-        self.logger.info("Compiling CMSSW release {cmssw_path:s} with fragments".format(cmssw_path=self.cmssw_path))
-        # compile CMSSW in the src directory of the CMSSW directory
-        cmd = ["scramv1", "build"]
-        self.logger.info("Run command {cmd:s}".format(cmd=law.util.quote_cmd(cmd)))
+        cmd = ["scram", "build"]
+        cwd = os.path.join(self.cmssw_path, "src")
         ret_code, out, err = law.util.interruptable_popen(
-            cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, cwd=os.path.join(self.cmssw_path, "src"), env=self.env
+            cmd,
+            cwd=cwd,
+            env=os.environ,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
         )
         if ret_code != 0:
-            raise RuntimeError(
-                "Command {cmd} failed with exit code {ret_code:d}".format(cmd=cmd, ret_code=ret_code)
-                + "\nOutput: {out:s}".format(out=out)
-                + "\nError: {err:s}".format(err=err)
-            )
-        self.logger.info("Successfully compiled CMSSW release {cmssw_path:s}".format(cmssw_path=self.cmssw_path))
+            raise Exception("CMSSW compilation failed with exit code {ret_code}".format(ret_code=ret_code))
 
 
-class AODSIMConfigurationTemplate(BaseTask, CMSDriverTask):
+class AODSIMConfigurationTemplate(DatasetTask):
+    config = "mc_ul18_fastsim_aodsim"
 
-    higgs_mass = luigi.FloatParameter()
-    step_name = "aodsim"
+    fileout_placeholder = "{{ cms_driver_fileout }}"
 
-    cms_driver_filein = law.NO_STR
-    cms_driver_fileout = "{{ cms_driver_fileout }}"
+    def create_branch_map(self):
+        # we do not need to structure this task as a workflow, overwrite branch map of parent task
+        return []
 
     def requires(self):
         reqs = {}
-        reqs["fragment"] = FragmentGeneration.req(self, higgs_mass=self.higgs_mass)
+        _dataset_inst = self.dataset_inst
+        reqs["fragment"] = FragmentGeneration.req(self, process=_dataset_inst.processes.get_first().name, branch=0)
         return reqs
 
     def output(self):
-        higgs_mass_str = (
-            str(int(self.higgs_mass))
-            if int(self.higgs_mass) == self.higgs_mass
-            else str(self.higgs_mass).replace(".", "p")
-        )
+        _dataset_inst = self.dataset_inst
         return self.local_target(
             self.__class__.__name__,
-            "GluGluHToTauTau_MH{higgs_mass:s}_pythia8_TuneCP5_{step:s}_cfg.py.j2".format(
-                higgs_mass=higgs_mass_str,
-                step=self.step_name,
-            ),
+            "{filename_prefix:s}_cfg.py.j2".format(filename_prefix=_dataset_inst.get_aux("filename_prefix")),
         )
 
     def run(self):
-        # get the output
+        # get the output and the branch data
         _output = self.output()
-        self.logger.info(
-            "creating cmsDriver.py AODSIM configuration template at {output:s}".format(output=_output.path)
-        )
+        _config_inst = self.config_inst
+        _dataset_inst = self.dataset_inst
 
-        # get fragment path relative to the CMSSW root directory and overwrite the corresponding instance attribute
-        _fragment = self.input()["fragment"]
-        m = re.match("^(.*CMSSW_\d+_\d+_\d+(_[\w\d]+)?(/src)?)/(.*)$", _fragment.path)
+        # get the input fragment
+        _input_fragment = self.input()["fragment"]
+        m = re.match(r"^(.*CMSSW_\d+_\d+_\d+(_[\w\d]+)?(/src)?)/(.*)$", _input_fragment.path)
         if m is None:
-            raise RuntimeError("Fragment path {path:s} has not the expected pattern".format(_fragment.path))
-        self.cms_driver_fragment = os.path.relpath(_fragment.path, start=m.group(1))
+            raise RuntimeError("Fragment path {path:s} has not the expected pattern".format(path=_input_fragment.path))
 
-        # create the configuration
-        tmp_config = law.LocalFileTarget(is_tmp=True, tmp_dir=_output.parent)
-        tmp_python_filename = tmp_config.basename
-        cmd = self.build_command(python_filename=tmp_python_filename)
-        self.logger.info("running command {cmd:s}".format(cmd=law.util.quote_cmd(cmd)))
-        self.run_command(cmd, tmp_config)
+        # prepare arguments for the cmsDriver command
+        fragment = os.path.relpath(_input_fragment.path, start=m.group(1))
+        tmp_python_filename = _output.basename.replace(".j2", "")
+        fileout = self.fileout_placeholder
+
+        cms_driver_kwargs = _config_inst.get_aux("cms_driver_kwargs")
+        cms_driver_kwargs["python_filename"] = tmp_python_filename
+        cms_driver_kwargs["fileout"] = fileout
+        if "n" in cms_driver_kwargs:
+            cms_driver_kwargs.pop("n")
+        cms_driver_kwargs["number"] = "-1"
+
+        cms_driver_args = _config_inst.get_aux("cms_driver_args")
+        if "no_exec" not in cms_driver_args:
+            cms_driver_args.append("no_exec")
+
+        # run the command in a temporary directory
+        tmp_dir = law.LocalDirectoryTarget(is_tmp=True, tmp_dir=os.path.expandvars("${PROD_BASE}/tmp"))
+        tmp_dir.touch()
+        tmp_python_file = law.LocalFileTarget(os.path.join(tmp_dir.path, tmp_python_filename))
+        popen_kwargs = {"env": os.environ, "cwd": tmp_dir.path, "stdout": subprocess.PIPE, "stderr": subprocess.PIPE}
+        ret_code, out, err = cms_driver(
+            fragment=fragment,
+            kwargs=cms_driver_kwargs,
+            args=cms_driver_args,
+            popen_kwargs=popen_kwargs,
+            yield_output=False,
+        )
+        if ret_code != 0:
+            self.logger.error("cmsDriver command failed")
+            self.logger.debug("Output\n======{out:s}\n\nError\n=====\n{err:s}".format(out=out, err=err))
+            raise RuntimeError("cmsDriver command failed")
 
         # load configuration content in order to inject some template placeholders
-        with tmp_config.open(mode="r") as f:
+        with tmp_python_file.open(mode="r") as f:
             content = f.read()
 
         # inject template placeholders for number of events
-        content = content.replace("-n -1", "-n {{ number_of_events }}")
+        content = content.replace("--number -1", "--number {{ number_of_events }}")
         content = content.replace(
             "input = cms.untracked.int32(-1)", "input = cms.untracked.int32({{ number_of_events }})"
         )
@@ -148,160 +143,134 @@ class AODSIMConfigurationTemplate(BaseTask, CMSDriverTask):
         # inject template placeholders for python filename
         content = content.replace(tmp_python_filename, "{{ python_filename }}")
 
-        # write the config to the output target
+        # write the config template to the output target
         _output.dump(content, formatter="text")
-        self.logger.info("successfully saved output to {output:s}".format(output=_output.path))
+        self.logger.info(
+            "successfully saved run config template for dataset {dataset:s}".format(dataset=_dataset_inst.name)
+        )
 
 
-class AODSIMConfiguration(BaseTask):
+class AODSIMConfiguration(DatasetTask, law.LocalWorkflow):
+    config = "mc_ul18_fastsim_aodsim"
 
-    cms_driver_python_filename = luigi.Parameter()
-    cms_driver_fileout = luigi.Parameter()
+    exclude_params_req_get = {"workflow"}
+    prefer_params_cli = {"workflow"}
 
-    higgs_mass = luigi.IntParameter()
-    job_index = luigi.IntParameter()
-    number_of_events = luigi.IntParameter()
+    def create_branch_map(self):
+        branch_map = super(AODSIMConfiguration, self).create_branch_map()
+        return branch_map
 
-    step_name = "aodsim"
+    def workflow_requires(self):
+        reqs = {}
+        reqs["config_template"] = AODSIMConfigurationTemplate.req(self, dataset=self.dataset)
+        return reqs
 
     def requires(self):
         reqs = {}
-        reqs["config_template"] = AODSIMConfigurationTemplate.req(self, higgs_mass=self.higgs_mass)
+        reqs["config_template"] = AODSIMConfigurationTemplate.req(self, dataset=self.dataset)
         return reqs
 
     def output(self):
-        return self.local_target(self.__class__.__name__, self.cms_driver_python_filename)
+        filename = os.path.basename(self.branch_data["keys"][0]).replace(".root", "_cfg.py")
+        target = self.local_target(self.__class__.__name__, filename)
+        return target
 
     def run(self):
-        # get the output
+        # get the output and branch data
         _output = self.output()
+        _dataset_inst = self.branch_data["dataset_inst"]
+        _keys = self.branch_data["keys"]
+        _file_index = self.branch_data["file_index"]
+        _n_events = self.branch_data["n_events"]
+
+        # prepare arguments for the placeholders
+        python_filename = _output.basename
+        fileout = "file:{filename:s}".format(filename=os.path.basename(_keys[0]))
 
         # load the configuration template and replace placeholders for configuration filename, production output file
         # and number of events
-        _config_template = self.input()["config_template"]
-        template = Template(_config_template.load(formatter="text"))
-        with _config_template.open(mode="r") as f:
+        _input_config_template = self.input()["config_template"]
+        template = Template(_input_config_template.load(formatter="text"))
+        with _input_config_template.open(mode="r") as f:
             template = Template(f.read())
         content = template.render(
-            pyhon_filename=_output.basename,
-            cms_driver_fileout=self.cms_driver_fileout,
-            number_of_events=self.number_of_events,
+            pyhon_filename=python_filename,
+            cms_driver_fileout=fileout,
+            number_of_events=_n_events,
         )
 
         # add luminosity block modifier to the end of the configuration file
-        content += "\n\nprocess.source.firstLuminosityBlock = cms.untracked.uint32(1 + {job_index:d})".format(
-            job_index=self.job_index
+        content += "\n\nprocess.source.firstLuminosityBlock = cms.untracked.uint32(1 + {file_index:d})".format(
+            file_index=_file_index
         )
 
-        # write useable configuration to the output target
+        # write useable config to the output target
         _output.dump(content, formatter="text")
+        self.logger.info(
+            "successfully saved run config for dataset {dataset:s}, file {file_index:d}".format(
+                dataset=_dataset_inst.name, file_index=_file_index
+            )
+        )
 
 
-class AODSIMProduction(BaseTask, HTCondorWorkflow, law.LocalWorkflow, law.SandboxTask):
-
-    step = "aodsim"
-    sandbox = "bash::${PROD_BASE}/sandboxes/cmssw_default.sh"
-
-    higgs_mass = 400
-    job_index = 2
-    number_of_events = 10
+class AODSIMProduction(DatasetTask, HTCondorWorkflow, law.LocalWorkflow):
+    config = "mc_ul18_fastsim_aodsim"
 
     def create_branch_map(self):
-        return {
-            0: {
-                "higgs_mass": self.higgs_mass,
-                "job_index": self.job_index,
-                "number_of_events": self.number_of_events,
-            }
-        }
+        branch_map = super(AODSIMProduction, self).create_branch_map()
+        return {1: branch_map[1]}
 
-    # def create_branch_map(self):
-    #    branch_map = []
-    #    for higgs_mass in range(50, 250, 1):
-    #        for job_index in range(5):
-    #            branch_map.append(
-    #                {
-    #                    "higgs_mass": higgs_mass,
-    #                    "job_index": job_index,
-    #                    "number_of_events": 10,  # 2000,
-    #                }
-    #            )
-    #    for higgs_mass in range(250, 805, 5):
-    #        for job_index in range(5, 15):
-    #            branch_map.append(
-    #                {
-    #                    "higgs_mass": higgs_mass,
-    #                    "job_index": job_index,
-    #                    "number_of_events": 10,  # 4000,
-    #                }
-    #            )
-    #    return {k: v for k, v in enumerate(branch_map)}
-
-    @property
-    def config_filename(self):
-        return "GluGluHToTauTau_MH{higgs_mass:d}_pythia8_TuneCP5_{step:s}_{job_index:d}_cfg.py".format(
-            higgs_mass=self.branch_data["higgs_mass"], step=self.step_name, job_index=self.branch_data["job_index"]
-        )
-
-    @property
-    def output_filename(self):
-        return "GluGluHToTauTau_MH{higgs_mass:d}_pythia8_TuneCP5_{step:s}_{job_index:d}.root".format(
-            higgs_mass=self.branch_data["higgs_mass"], step=self.step_name, job_index=self.branch_data["job_index"]
-        )
+    def workflow_requires(self):
+        reqs = {}
+        reqs["config"] = AODSIMConfiguration.req(self, dataset=self.dataset, branches=self.branches)
+        return reqs
 
     def requires(self):
         reqs = {}
-        reqs["config"] = AODSIMConfiguration.req(
-            self,
-            higgs_mass=self.branch_data["higgs_mass"],
-            job_index=self.branch_data["job_index"],
-            number_of_events=self.branch_data["number_of_events"],
-            cms_driver_python_filename=self.config_filename,
-            cms_driver_fileout="file:{filename:s}".format(filename=self.output_filename),
-        )
+        reqs["config"] = AODSIMConfiguration.req(self, dataset=self.dataset, branch=self.branch)
         return reqs
 
     def output(self):
-        return self.remote_target(self.step, self.output_filename)
+        _keys = self.branch_data["keys"]
+        parts = [p for p in _keys[0].split("/") if p.strip() != ""]
+        target = self.remote_target(*parts)
+        return target
 
     def run(self):
-        # get the output
+        # get the output and the branch data
         _output = self.output()
-        self.logger.info("Producing {output:s}".format(output=_output.path))
+        _dataset_inst = self.branch_data["dataset_inst"]
+        _file_index = self.branch_data["file_index"]
+
+        print("VOMS proxy is valid:", law.contrib.wlcg.check_voms_proxy_validity())
+        print("VOMS proxy:", law.contrib.wlcg.get_voms_proxy_file())
+        print("VOMS proxy lifetime:", law.contrib.wlcg.get_voms_proxy_lifetime())
 
         # get the config file
-        _config = self.input()["config"]
+        _input_config = self.input()["config"]
 
         # run the production in a temporary directory, copy input files before starting the production
         tmp_dir = law.LocalDirectoryTarget(is_tmp=True, tmp_dir=os.path.expandvars("${PROD_BASE}/tmp"))
         tmp_dir.touch()
-        tmp_config = law.LocalFileTarget(os.path.join(tmp_dir.path, _config.basename))
+        tmp_config = law.LocalFileTarget(os.path.join(tmp_dir.path, _input_config.basename))
         tmp_output = law.LocalFileTarget(os.path.join(tmp_dir.path, _output.basename))
-        tmp_config.copy_from_local(_config)
+        tmp_config.copy_from_local(_input_config)
 
         # run the production
-        cmd = ["cmsRun", tmp_config.basename]
-        self.logger.info("Run command {cmd:s}".format(cmd=law.util.quote_cmd(cmd)))
-        p, lines = law.util.readable_popen(
-            cmd,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.STDOUT,
-            cwd=tmp_config.parent.path,
-            env=self.env,
-        )
+        popen_kwargs = {"cwd": tmp_dir.path, "env": os.environ}
+        p, lines = cms_run(tmp_config.basename, popen_kwargs=popen_kwargs, yield_output=True)
         for line in lines:
             print(line)
             if p.poll() is not None:
                 break
-
-        # error handling
         if p.returncode != 0:
-            raise RuntimeError(
-                "Command {cmd} failed with exit code {ret_code:d}".format(cmd=cmd, ret_code=p.returncode)
-            )
-        elif not tmp_output.exists():
-            raise RuntimeError("Output file {output:s} does not exist".format(output=tmp_output.path))
+            self.logger.error("cmsRun command failed")
+            raise RuntimeError("cmsRun command failed")
 
-        # write produced dataset to the output target
+        # write produced file to the output target
         _output.copy_from_local(tmp_output)
-        self.logger.info("Successfully produced {output:s}".format(output=_output.path))
+        self.logger.info(
+            "successfully produced dataset {dataset:s}, file {file_index:d}".format(
+                dataset=_dataset_inst.name, file_index=_file_index
+            )
+        )

@@ -5,67 +5,38 @@ htcondor_bootstrap () {
 
     # use entrypoint directory of HTCondor job for setting $HOME
     SPAWN_DIR="$( pwd )"
-
-    if [[ ! -d "${SPAWN_DIR}/tmp" ]]; then
-        mkdir -p "${SPAWN_DIR}/tmp"
-    fi
-
-    export HOME="${SPAWN_DIR}/tmp"
-    export USER="{{user}}"
+    USER="{{user}}"
+    echo "spawn dir of bootstrap script: ${SPAWN_DIR}"
+    echo "user:                          ${USER}"
 
     # make law wlcg tools accessible
     source "{{wlcg_tools}}" "" || return "$?"
 
     # get the repository and extract it
-    local prod_base="${HOME}/htautau-sample-production"
+    local prod_base="${SPAWN_DIR}/htautau-sample-production"
     mkdir -p "${prod_base}"
     (
         cd "${prod_base}" &&
         law_wlcg_get_file "{{prod_repo_uris}}" "{{prod_repo_pattern}}" "repo.tgz" &&
         tar -xzf "repo.tgz" -C "${prod_base}" &&
-        rm "repo.tgz" &&
-        ls -lh
-    ) || return "$?"
-
-    # set up conda
-    local prod_conda_base="${prod_base}/{{prod_conda_base}}"
-    mkdir -p "${prod_conda_base}"
-    echo "${prod_conda_base}"
-    (
-        cd "${prod_conda_base}" &&
-        law_wlcg_get_file "{{prod_conda_uris}}" "{{prod_conda_pattern}}" "conda.tgz" &&
-        tar -xzf "conda.tgz" &&
-        rm "conda.tgz" &&
-        touch "./install_flag_file" &&
-        echo "$( date +%s )" >> "./install_flag_file" &&
-        source "./bin/activate" &&
-        conda-unpack &&
-        source "./bin/deactivate" &&
-        ls -lh
+        rm "repo.tgz"
     ) || return "$?"
 
     # setup the environment
     cd "${prod_base}" || return "$?"
-    source "setup.sh" "" || return "$?"
+    source "${prod_base}/setup.sh" "" || return "$?"
 
     export SCRAM_ARCH="${PROD_SCRAM_ARCH}"
 
     # extract and build additional CMSSW source files
-    mkdir -p "${PROD_CMSSW_BASE}/${PROD_CMSSW_ENV_NAME}"
-    echo "${PROD_CMSSW_BASE}/${PROD_CMSSW_ENV_NAME}"
     (
-        cd "${PROD_CMSSW_BASE}/${PROD_CMSSW_ENV_NAME}" &&
-        touch "./install_flag_file" &&
-        echo "$( date +%s )" >> "./install_flag_file" &&
-        source "/cvmfs/cms.cern.ch/cmsset_default.sh" "" &&
-        scramv1 project CMSSW "${PROD_CMSSW_VERSION}" &&
-        cd "${PROD_CMSSW_VERSION}" &&
+        cd "${CMSSW_BASE}" &&
         law_wlcg_get_file "{{prod_cmssw_uris}}" "{{prod_cmssw_pattern}}" "cmssw.tgz" &&
         tar -xzf "cmssw.tgz" &&
-        cd "src" &&
+        rm "cmssw.tgz" &&
+        cd "${CMSSW_BASE}/src" &&
         eval "$( scramv1 runtime -sh )" &&
-        scramv1 build &&
-        ls -lh
+        scramv1 build
     ) || return "$?"
 
     return "0"
