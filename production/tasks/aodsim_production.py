@@ -126,6 +126,7 @@ class AODSIMConfigurationTemplate(DatasetTask):
 
         cms_driver_kwargs = _config_inst.get_aux("cms_driver_kwargs")
         cms_driver_kwargs["python_filename"] = tmp_python_filename
+        print(tmp_python_filename)
         cms_driver_kwargs["fileout"] = fileout
         if "n" in cms_driver_kwargs:
             cms_driver_kwargs.pop("n")
@@ -147,18 +148,14 @@ class AODSIMConfigurationTemplate(DatasetTask):
             "stdout": subprocess.PIPE,
             "stderr": subprocess.PIPE,
         }
-        ret_code, out, err = cms_driver(
+        ret_code = cms_driver(
             fragment=fragment,
             kwargs=cms_driver_kwargs,
             args=cms_driver_args,
             popen_kwargs=popen_kwargs,
             yield_output=False,
-        )
+        )[0]
         if ret_code != 0:
-            self.logger.error("cmsDriver command failed")
-            self.logger.debug(
-                "Output\n======{out:s}\n\nError\n=====\n{err:s}".format(out=out, err=err)
-            )
             raise RuntimeError("cmsDriver command failed")
 
         # load configuration content in order to inject some template placeholders
