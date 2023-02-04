@@ -38,7 +38,7 @@ class FragmentGeneration(ProcessTask, law.LocalWorkflow):
         _fragment_template = law.LocalFileTarget(self.fragment_template)
         with _fragment_template.open(mode="r") as f:
             template = Template(f.read())
-        content = template.render(higgs_mass=_process_inst.get_aux("higgs_mass"))
+        content = template.render(higgs_mass=float(_process_inst.get_aux("higgs_mass")))
 
         # write the fragment content to the output target
         _output.dump(content, formatter="text")
@@ -241,10 +241,6 @@ class AODSIMProduction(DatasetTask, HTCondorWorkflow, law.LocalWorkflow):
         _output = self.output()
         _dataset_inst = self.branch_data["dataset_inst"]
         _file_index = self.branch_data["file_index"]
-
-        print("VOMS proxy is valid:", law.contrib.wlcg.check_voms_proxy_validity())
-        print("VOMS proxy:", law.contrib.wlcg.get_voms_proxy_file())
-        print("VOMS proxy lifetime:", law.contrib.wlcg.get_voms_proxy_lifetime())
 
         # get the config file
         _input_config = self.input()["config"]
