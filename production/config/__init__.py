@@ -2,16 +2,19 @@ import order as od
 
 
 # the analysis
+
 ggh_htautau_production = od.Analysis(name="ggh_htautau_production", id=0)
 
 
 # campaigns - distinguish between different data tiers
+
 mc_ul18_fastsim_aodsim = od.Campaign(name="mc_ul18_fastsim_aodsim", id=10, ecm=13, bx=25)
 mc_ul18_fastsim_miniaod = od.Campaign(name="mc_ul18_fastsim_miniaod", id=20, ecm=13, bx=25)
 mc_ul18_fastsim_nanoaod = od.Campaign(name="mc_ul18_fastsim_nanoaod", id=30, ecm=13, bx=25)
 
 
 # configs that connect analysis with campaigns
+
 cfg_aodsim = ggh_htautau_production.add_config(
     mc_ul18_fastsim_aodsim,
     aux=dict(
@@ -138,5 +141,6 @@ for cfg in configs:
                 ),
             ),
         )
+        cfg.add_dataset(d)
         i_ds += 50
     i_cfg += 1

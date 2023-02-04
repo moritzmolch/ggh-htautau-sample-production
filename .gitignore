@@ -167,7 +167,7 @@ cython_debug/
 # output and working directories
 _config/
 bundle/
-# data/
+data/
 jobs/
 tmp/
 

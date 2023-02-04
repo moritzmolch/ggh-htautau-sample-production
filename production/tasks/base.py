@@ -52,6 +52,9 @@ class ProcessTask(AnalysisTask):
         self.process_inst = self.config_inst.get_process(self.process)
 
     def create_branch_map(self):
+        # a generic branch map that associates each subprocess of the defined process with a branch
+        # if the process has no subprocesses a branch map with a single entry that contains the
+        # process is returned
         processes = self.process_inst.get_leaf_processes()
         branch_map = {}
         for i, p in enumerate(processes):
@@ -69,6 +72,7 @@ class DatasetTask(AnalysisTask):
         self.dataset_inst = self.config_inst.get_dataset(self.dataset)
 
     def create_branch_map(self):
+        # a generic branch map that associates each file of the dataset with a branch
         branch_map = {}
         for i in range(self.dataset_inst.n_files):
             branch_map[i] = {
@@ -128,19 +132,7 @@ class BundleProductionRepository(
         default=10, description="number of replica archives to generate; default is 10"
     )
 
-    exclude_files = [
-        ".law",
-        ".mypy_cache",
-        "bundle",
-        "jobs",
-        "modules",
-        "software",
-        "tmp",
-        "venv",
-        ".pre-commit-config.yaml",
-        "luigi.cfg.old",
-        "__pycache__" "*.pyc",
-    ]
+    include_files = ["data"]
     task_namespace = None
 
     def get_repo_path(self):
