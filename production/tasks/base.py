@@ -165,60 +165,6 @@ class BundleProductionRepository(
         self.transfer(bundle)
 
 
-class BundleDataStore(BaseTask, law.contrib.tasks.TransferLocalFile):
-    default_store = os.path.expandvars("${PROD_BUNDLE_STORE}")
-    replicas = luigi.IntParameter(
-        default=10, description="number of replica archives to generate; default is 10"
-    )
-
-    exclude = []
-
-    task_namespace = None
-
-    def get_store_path(self):
-        return os.path.expandvars("${PROD_DATA_STORE}")
-
-    def single_output(self):
-        return self.local_target("{0:s}.tgz".format(os.path.basename(self.get_store_path())))
-
-    def get_file_pattern(self):
-        path = os.path.expandvars(os.path.expanduser(self.single_output().path))
-        return self.get_replicated_path(path, i=None if self.replicas <= 0 else "*")
-
-    def output(self):
-        return law.contrib.tasks.TransferLocalFile.output(self)
-
-    @law.decorator.safe_output
-    def run(self):
-        # bundle repository
-        bundle = law.LocalFileTarget(is_tmp="tgz", tmp_dir=os.path.expandvars("${PROD_TMPDIR}"))
-        self.bundle(bundle)
-
-        # log the size
-        self.publish_message(
-            "bundled repository archive, size is {:.2f} {}".format(
-                *law.util.human_bytes(bundle.stat().st_size)
-            )
-        )
-
-        # transfer replica archives
-        self.transfer(bundle)
-
-    def bundle(self, dst_path):
-        cmd = [
-            law.util.rel_path(__file__, "..", "scripts", "bundle_store.sh"),
-            self.get_store_path(),
-            law.target.file.get_path(dst_path),
-        ]
-        if self.exclude != law.NO_STR:
-            cmd += [self.exclude]
-        cmd = law.util.quote_cmd(cmd)
-
-        code = law.util.interruptable_popen(cmd, shell=True, executable="/bin/bash")[0]
-        if code != 0:
-            raise Exception("store bundling failed")
-
-
 class HTCondorWorkflow(law.contrib.htcondor.HTCondorWorkflow):
     htcondor_universe = luigi.Parameter(default="docker", significant=False)
     htcondor_docker_image = luigi.Parameter(default="mschnepf/slc7-condocker", significant=False)
