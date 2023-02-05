@@ -103,7 +103,7 @@ class AODSIMConfigurationTemplate(DatasetTask):
         return self.local_target(
             self.__class__.__name__,
             "{filename_prefix:s}_cfg.py.j2".format(
-                filename_prefix=_dataset_inst.get_aux("filename_prefix")
+                filename_prefix=_dataset_inst.get_aux("filename_prefix"),
             ),
         )
 
@@ -151,14 +151,25 @@ class AODSIMConfigurationTemplate(DatasetTask):
             "stdout": subprocess.PIPE,
             "stderr": subprocess.PIPE,
         }
-        ret_code = cms_driver(
+        ret_code, out, err = cms_driver(
             fragment=fragment,
             kwargs=cms_driver_kwargs,
             args=cms_driver_args,
             popen_kwargs=popen_kwargs,
             yield_output=False,
-        )[0]
+        )
+
         if ret_code != 0:
+            self.logger.error(
+                "cmsDriver command failed\n"
+                + "Output\n"
+                + "======\n"
+                + out
+                + "\n\n"
+                + "Error\n"
+                + "=====\n"
+                + err
+            )
             raise RuntimeError("cmsDriver command failed")
 
         # load configuration content in order to inject some template placeholders
@@ -298,7 +309,7 @@ class AODSIMProduction(DatasetTask, HTCondorWorkflow, law.LocalWorkflow):
             if p.poll() is not None:
                 break
         if p.returncode != 0:
-            self.logger.error("cmsRun command failed")
+            self.logger.error("cmsRun command failed, for command output see above")
             raise RuntimeError("cmsRun command failed")
 
         # write produced file to the output target
@@ -310,8 +321,11 @@ class AODSIMProduction(DatasetTask, HTCondorWorkflow, law.LocalWorkflow):
         )
 
 
-class AnalysisAODSIMProduction(AnalysisTask, HTCondorWorkflow, law.LocalWorkflow):
+class AnalysisAODSIMConfiguration(AnalysisTask, law.LocalWorkflow):
     config = "mc_ul18_fastsim_aodsim"
+
+    exclude_params_req_get = {"workflow"}
+    prefer_params_cli = {"workflow"}
 
     def create_branch_map(self):
         # create a map that associates each output file with a branch of the workflow
@@ -329,15 +343,61 @@ class AnalysisAODSIMProduction(AnalysisTask, HTCondorWorkflow, law.LocalWorkflow
         return branch_map
 
     def workflow_requires(self):
-        reqs = super(AnalysisAODSIMProduction, self).workflow_requires()
+        reqs = {}
+        for branch, branch_data in self.get_branch_map().items():
+            _dataset_inst = branch_data["dataset_inst"]
+            reqs[
+                "config_template__branch_{branch:d}".format(branch=branch)
+            ] = AODSIMConfigurationTemplate.req(self, dataset=_dataset_inst.name)
         return reqs
 
     def requires(self):
         reqs = {}
         _dataset_inst = self.branch_data["dataset_inst"]
-        _file_index = self.branch_data["dataset_inst"]
-        reqs["config"] = AODSIMConfiguration.req(
-            self, dataset=_dataset_inst.name, branch=_file_index
+        reqs["config_template"] = AODSIMConfigurationTemplate.req(self, dataset=_dataset_inst.name)
+        return reqs
+
+    def output(self):
+        filename = os.path.basename(self.branch_data["keys"][0]).replace(".root", "_cfg.py")
+        target = self.local_target(self.__class__.__name__, filename)
+        return target
+
+    def run(self):
+        # get the output and branch data
+        _output = self.output()
+        _dataset_inst = self.branch_data["dataset_inst"]
+        _keys = self.branch_data["keys"]
+        _file_index = self.branch_data["file_index"]
+        _n_events = self.branch_data["n_events"]
+
+        # prepare arguments for the placeholders
+        python_filename = _output.basename
+        fileout = "file:{filename:s}".format(filename=os.path.basename(_keys[0]))
+
+        # load the configuration template and replace placeholders for configuration filename,
+        # production output file and number of events
+        _input_config_template = self.input()["config_template"]
+        template = Template(_input_config_template.load(formatter="text"))
+        with _input_config_template.open(mode="r") as f:
+            template = Template(f.read())
+        content = template.render(
+            python_filename=python_filename,
+            cms_driver_fileout=fileout,
+            number_of_events=_n_events,
+        )
+
+        # add luminosity block modifier to the end of the configuration file
+        content += (
+            "\n\nprocess.source.firstLuminosityBlock = cms.untracked.uint32(1 + "
+            + "{file_index:d})".format(file_index=_file_index)
+        )
+
+        # write useable config to the output target
+        _output.dump(content, formatter="text")
+        self.logger.info(
+            "successfully saved run config for dataset {dataset:s}, file {file_index:d}".format(
+                dataset=_dataset_inst.name, file_index=_file_index
+            )
         )
 
 

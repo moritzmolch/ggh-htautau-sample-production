@@ -1,4 +1,4 @@
-# htautau-sample-production
+# ggh-htautau-sample-production
 
 Production of gg &#x2192; H &#x2192; &#x1D70F;&#x1D70F; samples with variable Higgs mass.
 
