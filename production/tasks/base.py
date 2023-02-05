@@ -176,7 +176,7 @@ class HTCondorWorkflow(law.contrib.htcondor.HTCondorWorkflow):
         default=2000, significant=False, description="(in MB)"
     )
     htcondor_request_walltime = luigi.IntParameter(
-        default=3600, significant=False, description="(in s)"
+        default=86400, significant=False, description="(in s)"
     )
     htcondor_request_disk = luigi.Parameter(
         default=200000, significant=False, description="(in KB)"
@@ -281,9 +281,9 @@ class HTCondorWorkflow(law.contrib.htcondor.HTCondorWorkflow):
             config.custom_content.append(("request_gpus", self.htcondor_request_gpus))
         config.custom_content.append(("request_memory", self.htcondor_request_memory))
         config.custom_content.append(("request_disk", self.htcondor_request_disk))
-        config.custom_content.append(("+request_walltime", self.htcondor_request_walltime))
+        config.custom_content.append(("+RequestWalltime", self.htcondor_request_walltime))
         if self.htcondor_remote_job:
-            config.custom_content.append(("+remote_job", self.htcondor_remote_job))
+            config.custom_content.append(("+RemoteJob", self.htcondor_remote_job))
 
         # user information: accounting group and VOMS proxy
         config.custom_content.append(("accounting_group", self.htcondor_accounting_group))
