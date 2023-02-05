@@ -18,19 +18,28 @@ action () {
 
     # define important paths of this project as well as storage targets
     export PROD_BASE="${this_dir}"
-    export PROD_JOBS_BASE="${PROD_BASE}/jobs"
-    export PROD_BUNDLE_BASE="${PROD_BASE}/bundle"
-    export PROD_SOFTWARE_BASE="${PROD_BASE}/software"
-    export PROD_SOFTWARE_LOCAL_BASE="${PROD_SOFTWARE_BASE}/local"
 
-    # CMSSW settings (architecture and version)
+    # set root for temporary objects for this project to directory inside ${PROD_BASE}
+    export PROD_TMPDIR="${PROD_BASE}/tmp"
+    mkdir -p "${PROD_TMPDIR}"
+    export PROD_ORIG_TMPDIR="${TMPDIR}"
+    export TMPDIR="${PROD_TMPDIR}"
+
+    # set different store locations
+    export PROD_DATA_STORE="${PROD_BASE}/data"
+    export PROD_JOBS_STORE="${PROD_BASE}/jobs"
+    export PROD_BUNDLE_STORE="${PROD_BASE}/bundle"
+
+    # set the destination for additional software installations
+    export PROD_SOFTWARE_BASE="${PROD_BASE}/software"
+    export PROD_SOFTWARE_LOCAL="${PROD_SOFTWARE_BASE}/local"
     export PROD_SCRAM_ARCH="slc7_amd64_gcc700"
     export PROD_CMSSW_VERSION="CMSSW_10_6_29_patch1"
     export PROD_CMSSW_BASE="${PROD_SOFTWARE_BASE}/cmssw/${PROD_CMSSW_VERSION}"
 
     # helper functions for adding python packages and binaries
     prod_pip_install () {
-        pip install --ignore-installed --no-cache-dir --prefix "${PROD_SOFTWARE_LOCAL_BASE}" "$@"
+        pip install --ignore-installed --no-cache-dir --prefix "${PROD_SOFTWARE_LOCAL}" "$@"
     }
     export -f prod_pip_install
 
@@ -77,16 +86,16 @@ action () {
     export PROD_ORIG_PYTHONPATH="${PYTHONPATH}"
 
     # install python packages
-    if [[ ! -d "${PROD_SOFTWARE_LOCAL_BASE}" ]]; then
+    if [[ ! -d "${PROD_SOFTWARE_LOCAL}" ]]; then
         (
-            mkdir -p "${PROD_SOFTWARE_LOCAL_BASE}" &&
+            mkdir -p "${PROD_SOFTWARE_LOCAL}" &&
             prod_pip_install law &&
             prod_pip_install order
         ) || return "$?"
     fi
 
-    prod_add_bin "${PROD_SOFTWARE_LOCAL_BASE}/bin"
-    prod_add_py "${PROD_SOFTWARE_LOCAL_BASE}/lib/python2.7/site-packages"
+    prod_add_bin "${PROD_SOFTWARE_LOCAL}/bin"
+    prod_add_py "${PROD_SOFTWARE_LOCAL}/lib/python2.7/site-packages"
 
     # VOMS proxy settings
     export GLOBUS_THREAD_MODEL="none"

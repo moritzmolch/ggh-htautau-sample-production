@@ -68,13 +68,13 @@ class CompileCMSSW(BaseTask, law.contrib.tasks.RunOnceTask):
     def run(self):
         cmd = ["scram", "build"]
         cwd = os.path.join(self.cmssw_path, "src")
-        ret_code = law.util.interruptable_popen(
+        ret_code, _, _ = law.util.interruptable_popen(
             cmd,
             cwd=cwd,
             env=os.environ,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
-        )[0]
+        )
         if ret_code != 0:
             raise Exception(
                 "CMSSW compilation failed with exit code {ret_code}".format(ret_code=ret_code)
@@ -141,7 +141,7 @@ class AODSIMConfigurationTemplate(DatasetTask):
 
         # run the command in a temporary directory
         tmp_dir = law.LocalDirectoryTarget(
-            is_tmp=True, tmp_dir=os.path.expandvars("${PROD_BASE}/tmp")
+            is_tmp=True, tmp_dir=os.path.expandvars("${PROD_TMPDIR}")
         )
         tmp_dir.touch()
         tmp_python_file = law.LocalFileTarget(os.path.join(tmp_dir.path, tmp_python_filename))
@@ -283,7 +283,7 @@ class AODSIMProduction(DatasetTask, HTCondorWorkflow, law.LocalWorkflow):
         # run the production in a temporary directory, copy input files before starting the
         # production
         tmp_dir = law.LocalDirectoryTarget(
-            is_tmp=True, tmp_dir=os.path.expandvars("${PROD_BASE}/tmp")
+            is_tmp=True, tmp_dir=os.path.expandvars("${PROD_TMPDIR}")
         )
         tmp_dir.touch()
         tmp_config = law.LocalFileTarget(os.path.join(tmp_dir.path, _input_config.basename))
@@ -359,7 +359,7 @@ class AnalysisAODSIMProduction(AnalysisTask, HTCondorWorkflow, law.LocalWorkflow
         # run the production in a temporary directory, copy input files before starting the
         # production
         tmp_dir = law.LocalDirectoryTarget(
-            is_tmp=True, tmp_dir=os.path.expandvars("${PROD_BASE}/tmp")
+            is_tmp=True, tmp_dir=os.path.expandvars("${PROD_TMPDIR}")
         )
         tmp_dir.touch()
         tmp_config = law.LocalFileTarget(os.path.join(tmp_dir.path, _input_config.basename))

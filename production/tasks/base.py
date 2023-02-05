@@ -9,7 +9,7 @@ law.contrib.load("cms", "git", "htcondor", "tasks", "wlcg")
 
 
 class BaseTask(law.Task):
-    default_store = os.path.expandvars("${PROD_BASE}/data")
+    default_store = os.path.expandvars("${PROD_DATA_STORE}")
 
     def __init__(self, *args, **kwargs):
         super(BaseTask, self).__init__(*args, **kwargs)
@@ -85,7 +85,7 @@ class DatasetTask(AnalysisTask):
 
 
 class BundleCMSSW(BaseTask, law.contrib.tasks.TransferLocalFile, law.contrib.cms.BundleCMSSW):
-    default_store = os.path.expandvars("${PROD_BUNDLE_BASE}")
+    default_store = os.path.expandvars("${PROD_BUNDLE_STORE}")
     replicas = luigi.IntParameter(
         default=10, description="number of replica archives to generate; default is 10"
     )
@@ -110,7 +110,7 @@ class BundleCMSSW(BaseTask, law.contrib.tasks.TransferLocalFile, law.contrib.cms
     @law.decorator.safe_output
     def run(self):
         # bundle repository
-        bundle = law.LocalFileTarget(is_tmp="tgz", tmp_dir=os.path.expandvars("${PROD_BASE}/tmp"))
+        bundle = law.LocalFileTarget(is_tmp="tgz", tmp_dir=os.path.expandvars("${PROD_TMPDIR}"))
         self.bundle(bundle)
 
         # log the size
@@ -127,7 +127,7 @@ class BundleCMSSW(BaseTask, law.contrib.tasks.TransferLocalFile, law.contrib.cms
 class BundleProductionRepository(
     BaseTask, law.contrib.tasks.TransferLocalFile, law.contrib.git.BundleGitRepository
 ):
-    default_store = os.path.expandvars("${PROD_BUNDLE_BASE}")
+    default_store = os.path.expandvars("${PROD_BUNDLE_STORE}")
     replicas = luigi.IntParameter(
         default=10, description="number of replica archives to generate; default is 10"
     )
@@ -151,7 +151,18 @@ class BundleProductionRepository(
     @law.decorator.safe_output
     def run(self):
         # bundle repository
-        bundle = law.LocalFileTarget(is_tmp="tgz", tmp_dir=os.path.expandvars("${PROD_BASE}/tmp"))
+        bundle = law.LocalFileTarget(is_tmp="tgz", tmp_dir=os.path.expandvars("${PROD_TMPDIR}"))
+        self.bundle(bundle)
+
+        # log the size
+        self.publish_message(
+            "bundled repository archive, size is {:.2f} {}".format(
+                *law.util.human_bytes(bundle.stat().st_size)
+            )
+        )
+
+        # transfer replica archives
+        self.transfer(bundle)
         self.bundle(bundle)
 
         # log the size
@@ -209,7 +220,7 @@ class HTCondorWorkflow(law.contrib.htcondor.HTCondorWorkflow):
         return reqs
 
     def htcondor_output_directory(self):
-        return law.LocalDirectoryTarget(os.path.expandvars("${PROD_JOBS_BASE}"))
+        return law.LocalDirectoryTarget(os.path.expandvars("${PROD_JOBS_STORE}"))
 
     def htcondor_create_job_file_factory(self, **kwargs):
         kwargs = law.util.merge_dicts(
