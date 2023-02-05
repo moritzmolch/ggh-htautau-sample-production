@@ -26,7 +26,8 @@ action () {
     export TMPDIR="${PROD_TMPDIR}"
 
     # set different store locations
-    export PROD_DATA_STORE="${PROD_BASE}/data"
+    # export PROD_DATA_STORE="${PROD_BASE}/data"
+    export PROD_DATA_STORE="/work/mmolch/ggh-htautau-sample-production/data"
     export PROD_JOBS_STORE="${PROD_BASE}/jobs"
     export PROD_BUNDLE_STORE="${PROD_BASE}/bundle"
 
