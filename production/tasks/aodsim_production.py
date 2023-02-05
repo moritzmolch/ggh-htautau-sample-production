@@ -339,6 +339,34 @@ class AnalysisAODSIMProduction(AnalysisTask, HTCondorWorkflow, law.LocalWorkflow
         reqs["config"] = AODSIMConfiguration.req(
             self, dataset=_dataset_inst.name, branch=_file_index
         )
+
+
+class AnalysisAODSIMProduction(AnalysisTask, HTCondorWorkflow, law.LocalWorkflow):
+    config = "mc_ul18_fastsim_aodsim"
+
+    def create_branch_map(self):
+        # create a map that associates each output file with a branch of the workflow
+        branch_map = {}
+        i = 0
+        for _dataset_inst in self.config_inst.datasets:
+            for file_index in range(_dataset_inst.n_files):
+                branch_map[i] = {
+                    "dataset_inst": _dataset_inst,
+                    "file_index": file_index,
+                    "keys": [_dataset_inst.keys[file_index]],
+                    "n_events": _dataset_inst.get_aux("n_events_per_file"),
+                }
+                i += 1
+        return branch_map
+
+    def workflow_requires(self):
+        reqs = {}
+        reqs["config"] = AnalysisAODSIMConfiguration.req(self, branches=self.branches)
+        return reqs
+
+    def requires(self):
+        reqs = {}
+        reqs["config"] = AnalysisAODSIMConfiguration.req(self, branch=self.branch)
         return reqs
 
     def output(self):
@@ -367,7 +395,12 @@ class AnalysisAODSIMProduction(AnalysisTask, HTCondorWorkflow, law.LocalWorkflow
         tmp_config.copy_from_local(_input_config)
 
         # run the production
-        popen_kwargs = {"cwd": tmp_dir.path, "env": os.environ}
+        popen_kwargs = {
+            "cwd": tmp_dir.path,
+            "shell": True,
+            "executable": "/bin/bash",
+            # "env": os.environ,
+        }
         p, lines = cms_run(tmp_config.basename, popen_kwargs=popen_kwargs, yield_output=True)
         for line in lines:
             print(line)
