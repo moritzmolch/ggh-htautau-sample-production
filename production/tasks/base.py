@@ -11,6 +11,8 @@ law.contrib.load("cms", "git", "htcondor", "tasks", "wlcg")
 class BaseTask(law.Task):
     default_store = os.path.expandvars("${PROD_DATA_STORE}")
 
+    output_collection_cls = law.SiblingFileCollection
+
     def __init__(self, *args, **kwargs):
         super(BaseTask, self).__init__(*args, **kwargs)
 
@@ -132,7 +134,6 @@ class BundleProductionRepository(
         default=10, description="number of replica archives to generate; default is 10"
     )
 
-    include_files = ["data"]
     task_namespace = None
 
     def get_repo_path(self):
