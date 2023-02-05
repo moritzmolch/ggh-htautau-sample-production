@@ -30,9 +30,7 @@ class BaseTask(law.Task):
 
     def remote_target(self, *path, **kwargs):
         target_class = (
-            law.contrib.wlcg.WLCGDirectoryTarget
-            if kwargs.pop("dir", False)
-            else law.contrib.wlcg.WLCGFileTarget
+            law.wlcg.WLCGDirectoryTarget if kwargs.pop("dir", False) else law.wlcg.WLCGFileTarget
         )
         return target_class(self.remote_path(*path))
 
@@ -86,7 +84,7 @@ class DatasetTask(AnalysisTask):
         return branch_map
 
 
-class BundleCMSSW(BaseTask, law.contrib.tasks.TransferLocalFile, law.contrib.cms.BundleCMSSW):
+class BundleCMSSW(BaseTask, law.tasks.TransferLocalFile, law.contrib.cms.BundleCMSSW):
     default_store = os.path.expandvars("${PROD_BUNDLE_STORE}")
     replicas = luigi.IntParameter(
         default=10, description="number of replica archives to generate; default is 10"
@@ -107,7 +105,7 @@ class BundleCMSSW(BaseTask, law.contrib.tasks.TransferLocalFile, law.contrib.cms
         return self.get_replicated_path(path, i=None if self.replicas <= 0 else "*")
 
     def output(self):
-        return law.contrib.tasks.TransferLocalFile.output(self)
+        return law.tasks.TransferLocalFile.output(self)
 
     @law.decorator.safe_output
     def run(self):
@@ -127,7 +125,7 @@ class BundleCMSSW(BaseTask, law.contrib.tasks.TransferLocalFile, law.contrib.cms
 
 
 class BundleProductionRepository(
-    BaseTask, law.contrib.tasks.TransferLocalFile, law.contrib.git.BundleGitRepository
+    BaseTask, law.tasks.TransferLocalFile, law.git.BundleGitRepository
 ):
     default_store = os.path.expandvars("${PROD_BUNDLE_STORE}")
     replicas = luigi.IntParameter(
@@ -147,7 +145,7 @@ class BundleProductionRepository(
         return self.get_replicated_path(path, i=None if self.replicas <= 0 else "*")
 
     def output(self):
-        return law.contrib.tasks.TransferLocalFile.output(self)
+        return law.tasks.TransferLocalFile.output(self)
 
     @law.decorator.safe_output
     def run(self):
@@ -166,7 +164,7 @@ class BundleProductionRepository(
         self.transfer(bundle)
 
 
-class HTCondorWorkflow(law.contrib.htcondor.HTCondorWorkflow):
+class HTCondorWorkflow(law.htcondor.HTCondorWorkflow):
     htcondor_universe = luigi.Parameter(default="docker", significant=False)
     htcondor_docker_image = luigi.Parameter(default="mschnepf/slc7-condocker", significant=False)
     htcondor_requirements = luigi.Parameter(default=law.NO_STR, significant=False)
@@ -186,7 +184,7 @@ class HTCondorWorkflow(law.contrib.htcondor.HTCondorWorkflow):
 
     htcondor_accounting_group = luigi.Parameter(default="cms.higgs", significant=False)
     htcondor_run_as_owner = luigi.BoolParameter(default=True, significant=False)
-    htcondor_x509userproxy = law.contrib.wlcg.get_voms_proxy_file()
+    htcondor_x509userproxy = law.wlcg.get_voms_proxy_file()
 
     exclude_params_branch = {
         "htcondor_universe",
@@ -204,7 +202,7 @@ class HTCondorWorkflow(law.contrib.htcondor.HTCondorWorkflow):
     }
 
     def htcondor_workflow_requires(self):
-        reqs = law.contrib.htcondor.HTCondorWorkflow.htcondor_workflow_requires(self)
+        reqs = law.htcondor.HTCondorWorkflow.htcondor_workflow_requires(self)
         reqs["repo"] = BundleProductionRepository.req(self, replicas=3)
         reqs["cmssw"] = BundleCMSSW.req(self, replicas=3)
         return reqs
