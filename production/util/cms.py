@@ -38,10 +38,10 @@ def cms_driver(
     popen_kwargs=None,
     yield_output=False,
 ):
-    cmd = _build_cms_driver_command(fragment=fragment, kwargs=kwargs, args=args)
+    cmd = law.util.quote_cmd(_build_cms_driver_command(fragment=fragment, kwargs=kwargs, args=args))
     fn = law.util.readable_popen if yield_output else law.util.interruptable_popen
     _popen_kwargs = dict(popen_kwargs) if popen_kwargs else {}
-    return fn(cmd, **_popen_kwargs)
+    return fn(cmd, shell=True, executable="/bin/bash", **_popen_kwargs)
 
 
 def cms_run(
@@ -49,10 +49,10 @@ def cms_run(
     popen_kwargs=None,
     yield_output=False,
 ):
-    cmd = ["cmsRun", config_file]
+    cmd = law.util.quote_cmd(["cmsRun", config_file])
     fn = law.util.readable_popen if yield_output else law.util.interruptable_popen
     _popen_kwargs = dict(popen_kwargs) if popen_kwargs else {}
-    return fn(cmd, **_popen_kwargs)
+    return fn(cmd, shell=True, executable="/bin/bash", **_popen_kwargs)
 
 
 def _parse_cms_run_event(line):

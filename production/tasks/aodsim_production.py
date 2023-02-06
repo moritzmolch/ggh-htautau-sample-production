@@ -457,9 +457,7 @@ class AnalysisAODSIMProduction(AnalysisTask, HTCondorWorkflow, law.LocalWorkflow
         # run the production
         popen_kwargs = {
             "cwd": tmp_dir.path,
-            "shell": True,
-            "executable": "/bin/bash",
-            # "env": os.environ,
+            "env": os.environ,
         }
         p, lines = cms_run(tmp_config.basename, popen_kwargs=popen_kwargs, yield_output=True)
         for line in lines:
