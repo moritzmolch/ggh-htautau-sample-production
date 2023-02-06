@@ -22,8 +22,8 @@ action () {
     # set root for temporary objects for this project to directory inside ${PROD_BASE}
     export PROD_TMPDIR="${PROD_BASE}/tmp"
     mkdir -p "${PROD_TMPDIR}"
-    export PROD_ORIG_TMPDIR="${TMPDIR}"
-    export TMPDIR="${PROD_TMPDIR}"
+    #export PROD_ORIG_TMPDIR="${TMPDIR}"
+    #export TMPDIR="${PROD_TMPDIR}"
 
     # set different store locations
     # export PROD_DATA_STORE="${PROD_BASE}/data"
@@ -116,11 +116,13 @@ action () {
     export PATH="${PATH}:${grid_base}/usr/bin:${grid_base}/usr/sbin"
     export PYTHONPATH="${PYTHONPATH}:${grid_base}/usr/lib64/python2.7/site-packages:${grid_base}/usr/lib/python2.7/site-packages"
 
+    prod_add_py "${PROD_BASE}"
+
     # law setup
     export LAW_HOME="${PROD_BASE}/.law"
     export LAW_CONFIG_FILE="${PROD_BASE}/law.cfg"
     source "$( law completion )"
-    law index --verbose
+    law index -q
 
     export PROD_SETUP="1"
 }
