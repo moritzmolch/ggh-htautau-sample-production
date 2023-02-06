@@ -133,6 +133,16 @@ class BundleProductionRepository(
     )
 
     task_namespace = None
+    exclude_files = [
+        ".law",
+        "_config",
+        "bundle",
+        "data",
+        "jobs",
+        "software",
+        "tmp",
+        "venv",
+    ]
 
     def get_repo_path(self):
         return os.path.expandvars("${PROD_BASE}")
@@ -167,18 +177,22 @@ class BundleProductionRepository(
 class HTCondorWorkflow(law.htcondor.HTCondorWorkflow):
     htcondor_universe = luigi.Parameter(default="docker", significant=False)
     htcondor_docker_image = luigi.Parameter(default="mschnepf/slc7-condocker", significant=False)
-    htcondor_requirements = luigi.Parameter(default=law.NO_STR, significant=False)
+    htcondor_requirements = luigi.Parameter(
+        default="(Target.ProvidesIO =?= True) && (Target.ProvidesCPU =?= True) &&"
+        + " (Target.ProvidesEKPResources =?= True)",
+        significant=False,
+    )
 
     htcondor_request_cpus = luigi.IntParameter(default=1, significant=False)
     htcondor_request_gpus = luigi.IntParameter(default=0, significant=False)
     htcondor_request_memory = luigi.Parameter(
-        default=2000, significant=False, description="(in MB)"
+        default=5000, significant=False, description="(in MB)"
     )
     htcondor_request_walltime = luigi.IntParameter(
         default=86400, significant=False, description="(in s)"
     )
     htcondor_request_disk = luigi.Parameter(
-        default=200000, significant=False, description="(in KB)"
+        default=10000000, significant=False, description="(in KB)"
     )
     htcondor_remote_job = luigi.BoolParameter(default=False, significant=False)
 
