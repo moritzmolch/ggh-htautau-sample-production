@@ -85,10 +85,6 @@ class AODSIMConfigurationTemplate(DatasetTask):
 
     fileout_placeholder = "{{ cms_driver_fileout }}"
 
-    def create_branch_map(self):
-        # we do not need to structure this task as a workflow, overwrite branch map of parent task
-        return []
-
     def requires(self):
         reqs = {}
         _dataset_inst = self.dataset_inst

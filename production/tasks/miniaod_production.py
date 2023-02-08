@@ -17,10 +17,6 @@ class MINIAODConfigurationTemplate(DatasetTask):
     filein_placeholder = "{{ cms_driver_filein }}"
     fileout_placeholder = "{{ cms_driver_fileout }}"
 
-    def create_branch_map(self):
-        # we do not need to structure this task as a workflow, overwrite branch map of parent task
-        return []
-
     def output(self):
         _dataset_inst = self.dataset_inst
         return self.local_target(
@@ -124,8 +120,8 @@ class MINIAODConfiguration(DatasetTask, law.LocalWorkflow):
                 "dataset_inst": self.dataset_inst,
                 "dataset_previous_inst": _dataset_previous_inst,
                 "file_index": i,
-                "keys": [self.dataset_inst.keys[i]],
-                "keys_previous": [_dataset_previous_inst.keys[i]],
+                "key": self.dataset_inst.keys[i],
+                "key_previous": _dataset_previous_inst.keys[i],
                 "n_events": self.dataset_inst.get_aux("n_events_per_file"),
             }
         return branch_map
@@ -150,13 +146,13 @@ class MINIAODConfiguration(DatasetTask, law.LocalWorkflow):
         _output = self.output()
         _dataset_inst = self.branch_data["dataset_inst"]
         _file_index = self.branch_data["file_index"]
-        _keys = self.branch_data["keys"]
-        _keys_previous = self.branch_data["keys_previous"]
+        _key = self.branch_data["key"]
+        _key_previous = self.branch_data["key_previous"]
 
         # prepare arguments for the placeholders
         python_filename = _output.basename
-        filein = "file:{filename:s}".format(filename=os.path.basename(_keys_previous[0]))
-        fileout = "file:{filename:s}".format(filename=os.path.basename(_keys[0]))
+        filein = "file:{filename:s}".format(filename=os.path.basename(_key_previous))
+        fileout = "file:{filename:s}".format(filename=os.path.basename(_key))
 
         # load the configuration template and replace placeholders for configuration filename,
         # production output file and number of events
@@ -199,8 +195,8 @@ class MINIAODProduction(AnalysisTask, HTCondorWorkflow, law.LocalWorkflow):
                 "dataset_inst": self.dataset_inst,
                 "dataset_previous_inst": _dataset_previous_inst,
                 "file_index": i,
-                "keys": [self.dataset_inst.keys[i]],
-                "keys_previous": [_dataset_previous_inst.keys[i]],
+                "key": self.dataset_inst.keys[i],
+                "key_previous": _dataset_previous_inst.keys[i],
                 "n_events": self.dataset_inst.get_aux("n_events_per_file"),
             }
         return branch_map
@@ -225,8 +221,8 @@ class MINIAODProduction(AnalysisTask, HTCondorWorkflow, law.LocalWorkflow):
         return reqs
 
     def output(self):
-        _keys = self.branch_data["keys"]
-        parts = [p for p in _keys[0].split("/") if p.strip() != ""]
+        _key = self.branch_data["key"]
+        parts = [p for p in _key.split("/") if p.strip() != ""]
         target = self.remote_target(*parts)
         return target
 

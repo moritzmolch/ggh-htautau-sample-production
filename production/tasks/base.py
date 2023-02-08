@@ -71,18 +71,6 @@ class DatasetTask(AnalysisTask):
         super(DatasetTask, self).__init__(*args, **kwargs)
         self.dataset_inst = self.config_inst.get_dataset(self.dataset)
 
-    def create_branch_map(self):
-        # a generic branch map that associates each file of the dataset with a branch
-        branch_map = {}
-        for i in range(self.dataset_inst.n_files):
-            branch_map[i] = {
-                "dataset_inst": self.dataset_inst,
-                "file_index": i,
-                "keys": [self.dataset_inst.keys[i]],
-                "n_events": self.dataset_inst.get_aux("n_events_per_file"),
-            }
-        return branch_map
-
 
 class BundleCMSSW(BaseTask, law.tasks.TransferLocalFile, law.contrib.cms.BundleCMSSW):
     default_store = os.path.expandvars("${PROD_BUNDLE_STORE}")
