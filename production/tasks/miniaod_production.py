@@ -4,7 +4,7 @@ import order as od
 import os
 import subprocess
 
-from production.tasks.aodsim_production import AnalysisAODSIMConfiguration
+from production.tasks.aodsim_production import AODSIMProduction
 from production.tasks.base import AnalysisTask, DatasetTask, HTCondorWorkflow
 from production.util.cms import cms_driver, cms_run
 
@@ -210,14 +210,14 @@ class MINIAODProduction(AnalysisTask, HTCondorWorkflow, law.LocalWorkflow):
             reqs["config_{i:d}".format(i=i)] = MINIAODConfiguration.req(
                 self, dataset=_dataset_inst.name
             )
-        reqs["aodsim"] = AnalysisAODSIMConfiguration.req(self, branches=self.branches)
+        reqs["aodsim"] = AODSIMProduction.req(self, branches=self.branches)
         return reqs
 
     def requires(self):
         _dataset_inst = self.branch_data["dataset_inst"]
         reqs = {}
         reqs["config"] = MINIAODConfiguration.req(self, dataset=_dataset_inst.name)
-        reqs["aodsim"] = AnalysisAODSIMConfiguration.req(self, branch=self.branch)
+        reqs["aodsim"] = AODSIMProduction.req(self, branch=self.branch)
         return reqs
 
     def output(self):

@@ -1,6 +1,7 @@
 import law
 import luigi
 import os
+import subprocess
 
 from production.config import ggh_htautau_production
 
@@ -70,6 +71,25 @@ class DatasetTask(AnalysisTask):
     def __init__(self, *args, **kwargs):
         super(DatasetTask, self).__init__(*args, **kwargs)
         self.dataset_inst = self.config_inst.get_dataset(self.dataset)
+
+
+class CompileCMSSW(BaseTask, law.contrib.tasks.RunOnceTask):
+    cmssw_path = os.path.expandvars("${PROD_CMSSW_BASE}")
+
+    def run(self):
+        cmd = ["scram", "build"]
+        cwd = os.path.join(self.cmssw_path, "src")
+        ret_code, _, _ = law.util.interruptable_popen(
+            cmd,
+            cwd=cwd,
+            env=os.environ,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+        )
+        if ret_code != 0:
+            raise Exception(
+                "CMSSW compilation failed with exit code {ret_code}".format(ret_code=ret_code)
+            )
 
 
 class BundleCMSSW(BaseTask, law.tasks.TransferLocalFile, law.contrib.cms.BundleCMSSW):
