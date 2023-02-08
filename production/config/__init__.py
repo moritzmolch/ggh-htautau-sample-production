@@ -37,8 +37,48 @@ cfg_aodsim = ggh_htautau_production.add_config(
         cms_driver_args=["fast", "no_exec", "mc"],
     ),
 )
-cfg_miniaod = ggh_htautau_production.add_config(mc_ul18_fastsim_miniaod, aux=dict(step="miniaod"))
-cfg_nanoaod = ggh_htautau_production.add_config(mc_ul18_fastsim_nanoaod, aux=dict(step="nanoaod"))
+
+cfg_miniaod = ggh_htautau_production.add_config(
+    mc_ul18_fastsim_miniaod,
+    aux=dict(
+        step="miniaod",
+        config_previous=cfg_aodsim.name,
+        cms_driver_kwargs={
+            "customise": "Configuration/DataProcessing/Utils.addMonitoring",
+            "customise_commands": "from IOMC.RandomEngine.RandomServiceHelper import RandomNumberServiceHelper;randSvc"
+            + " = RandomNumberServiceHelper(process.RandomNumberGeneratorService);randSvc.populate()",
+            "step": "PAT",
+            "datatier": "MINIAODSIM",
+            "eventcontent": "MINIAODSIM",
+            "conditions": "106X_upgrade2018_realistic_v16_L1v1",
+            "beamspot": "Realistic25ns13TeVEarly2018Collision",
+            "era": "Run2_2018",
+            "procModifiers": "run2_miniAOD_UL",
+            "geometry": "DB:Extended",
+        },
+        cms_driver_args=["fast", "no_exec", "runUnscheduled", "mc"],
+    ),
+)
+
+cfg_nanoaod = ggh_htautau_production.add_config(
+    mc_ul18_fastsim_nanoaod,
+    aux=dict(
+        step="nanoaod",
+        config_previous=cfg_miniaod.name,
+        cms_driver_kwargs={
+            "customise": "Configuration/DataProcessing/Utils.addMonitoring",
+            "customise_commands": "from IOMC.RandomEngine.RandomServiceHelper import RandomNumberServiceHelper;randSvc"
+            + " = RandomNumberServiceHelper(process.RandomNumberGeneratorService);randSvc.populate()",
+            "step": "NANO",
+            "datatier": "NANOAODSIM",
+            "conditions": "106X_upgrade2018_realistic_v16_L1v1",
+            "beamspot": "Realistic25ns13TeVEarly2018Collision",
+            "era": "Run2_2018,run2_nanoaod_106Xv2",
+        },
+        cms_driver_args=["fast", "no_exec", "mc"],
+    ),
+)
+
 configs = [cfg_aodsim, cfg_miniaod, cfg_nanoaod]
 
 
