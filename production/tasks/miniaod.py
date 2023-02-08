@@ -137,7 +137,7 @@ class MINIAODConfiguration(DatasetTask, law.LocalWorkflow):
         return reqs
 
     def output(self):
-        filename = os.path.basename(self.branch_data["keys"][0]).replace(".root", "_cfg.py")
+        filename = os.path.basename(self.branch_data["key"]).replace(".root", "_cfg.py")
         target = self.local_target(self.__class__.__name__, filename)
         return target
 
