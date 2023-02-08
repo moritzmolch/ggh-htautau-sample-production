@@ -55,7 +55,7 @@ class FragmentGeneration(ProcessTask, law.LocalWorkflow):
 
         # write the fragment content to the output target
         _output.dump(content, formatter="text")
-        self.logger.info(
+        self.publish_message(
             "successfully created fragment for process {process:s}".format(
                 process=_process_inst.name
             )
@@ -188,7 +188,7 @@ class AODSIMConfigurationTemplate(DatasetTask):
 
         # write the config template to the output target
         _output.dump(content, formatter="text")
-        self.logger.info(
+        self.publish_message(
             "successfully saved run config template for dataset {dataset:s}".format(
                 dataset=_dataset_inst.name
             )
@@ -252,7 +252,7 @@ class AODSIMConfiguration(DatasetTask, law.LocalWorkflow):
 
         # write useable config to the output target
         _output.dump(content, formatter="text")
-        self.logger.info(
+        self.publish_message(
             "successfully saved run config for dataset {dataset:s}, file {file_index:d}".format(
                 dataset=_dataset_inst.name, file_index=_file_index
             )
@@ -314,7 +314,7 @@ class AODSIMProduction(DatasetTask, HTCondorWorkflow, law.LocalWorkflow):
 
         # write produced file to the output target
         _output.copy_from_local(tmp_output)
-        self.logger.info(
+        self.publish_message(
             "successfully produced dataset {dataset:s}, file {file_index:d}".format(
                 dataset=_dataset_inst.name, file_index=_file_index
             )
@@ -454,6 +454,16 @@ class AnalysisAODSIMProduction(AnalysisTask, HTCondorWorkflow, law.LocalWorkflow
         tmp_output = law.LocalFileTarget(os.path.join(tmp_dir.path, _output.basename))
         tmp_config.copy_from_local(_input_config)
 
+        # print information about production
+        self.publish_message(
+            "Producing dataset {dataset:s}, file {file_index:s}\n".format(
+                dataset=_dataset_inst.name, file_index=_file_index
+            )
+            + ">> configuration:       {config:s}\n".format(config=tmp_config.basename)
+            + ">> input dataset file:  {input:s}\n".format(input="-")
+            + ">> output dataset file: {output:s}".format(output=tmp_output.basename)
+        )
+
         # run the production
         popen_kwargs = {
             "cwd": tmp_dir.path,
@@ -470,7 +480,7 @@ class AnalysisAODSIMProduction(AnalysisTask, HTCondorWorkflow, law.LocalWorkflow
 
         # write produced file to the output target
         _output.copy_from_local(tmp_output)
-        self.logger.info(
+        self.publish_message(
             "successfully produced dataset {dataset:s}, file {file_index:d}".format(
                 dataset=_dataset_inst.name, file_index=_file_index
             )
