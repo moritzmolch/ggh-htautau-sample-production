@@ -4,7 +4,7 @@ import order as od
 import os
 import subprocess
 
-from production.tasks.aodsim_production import AODSIMProduction
+from production.tasks.aodsim import AODSIMProduction
 from production.tasks.base import AnalysisTask, DatasetTask, HTCondorWorkflow
 from production.util.cms import cms_driver, cms_run
 
