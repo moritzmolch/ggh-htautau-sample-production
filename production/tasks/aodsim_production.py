@@ -1,6 +1,5 @@
 from jinja2 import Template
 import law
-import luigi
 import os
 import re
 import subprocess
@@ -202,7 +201,15 @@ class AODSIMConfiguration(DatasetTask, law.LocalWorkflow):
     prefer_params_cli = {"workflow"}
 
     def create_branch_map(self):
-        branch_map = super(AODSIMConfiguration, self).create_branch_map()
+        # branch map that associates each file of the dataset with a branch
+        branch_map = {}
+        for i in range(self.dataset_inst.n_files):
+            branch_map[i] = {
+                "dataset_inst": self.dataset_inst,
+                "file_index": i,
+                "key": self.dataset_inst.keys[i],
+                "n_events": self.dataset_inst.get_aux("n_events_per_file"),
+            }
         return branch_map
 
     def workflow_requires(self):
@@ -216,7 +223,7 @@ class AODSIMConfiguration(DatasetTask, law.LocalWorkflow):
         return reqs
 
     def output(self):
-        filename = os.path.basename(self.branch_data["keys"][0]).replace(".root", "_cfg.py")
+        filename = os.path.basename(self.branch_data["key"]).replace(".root", "_cfg.py")
         target = self.local_target(self.__class__.__name__, filename)
         return target
 
@@ -224,13 +231,13 @@ class AODSIMConfiguration(DatasetTask, law.LocalWorkflow):
         # get the output and branch data
         _output = self.output()
         _dataset_inst = self.branch_data["dataset_inst"]
-        _keys = self.branch_data["keys"]
+        _key = self.branch_data["key"]
         _file_index = self.branch_data["file_index"]
         _n_events = self.branch_data["n_events"]
 
         # prepare arguments for the placeholders
         python_filename = _output.basename
-        fileout = "file:{filename:s}".format(filename=os.path.basename(_keys[0]))
+        fileout = "file:{filename:s}".format(filename=os.path.basename(_key))
 
         # load the configuration template and replace placeholders for configuration filename,
         # production output file and number of events
@@ -259,73 +266,8 @@ class AODSIMConfiguration(DatasetTask, law.LocalWorkflow):
         )
 
 
-class AODSIMProduction(DatasetTask, HTCondorWorkflow, law.LocalWorkflow):
+class AODSIMProduction(AnalysisTask, HTCondorWorkflow, law.LocalWorkflow):
     config = "mc_ul18_fastsim_aodsim"
-
-    def create_branch_map(self):
-        branch_map = super(AODSIMProduction, self).create_branch_map()
-        return branch_map
-
-    def workflow_requires(self):
-        reqs = {}
-        reqs["config"] = AODSIMConfiguration.req(self, dataset=self.dataset, branches=self.branches)
-        return reqs
-
-    def requires(self):
-        reqs = {}
-        reqs["config"] = AODSIMConfiguration.req(self, dataset=self.dataset, branch=self.branch)
-        return reqs
-
-    def output(self):
-        _keys = self.branch_data["keys"]
-        parts = [p for p in _keys[0].split("/") if p.strip() != ""]
-        target = self.remote_target(*parts)
-        return target
-
-    def run(self):
-        # get the output and the branch data
-        _output = self.output()
-        _dataset_inst = self.branch_data["dataset_inst"]
-        _file_index = self.branch_data["file_index"]
-
-        # get the config file
-        _input_config = self.input()["config"]
-
-        # run the production in a temporary directory, copy input files before starting the
-        # production
-        tmp_dir = law.LocalDirectoryTarget(
-            is_tmp=True, tmp_dir=os.path.expandvars("${PROD_TMPDIR}")
-        )
-        tmp_dir.touch()
-        tmp_config = law.LocalFileTarget(os.path.join(tmp_dir.path, _input_config.basename))
-        tmp_output = law.LocalFileTarget(os.path.join(tmp_dir.path, _output.basename))
-        tmp_config.copy_from_local(_input_config)
-
-        # run the production
-        popen_kwargs = {"cwd": tmp_dir.path, "env": os.environ}
-        p, lines = cms_run(tmp_config.basename, popen_kwargs=popen_kwargs, yield_output=True)
-        for line in lines:
-            print(line)
-            if p.poll() is not None:
-                break
-        if p.returncode != 0:
-            self.logger.error("cmsRun command failed, for command output see above")
-            raise RuntimeError("cmsRun command failed")
-
-        # write produced file to the output target
-        _output.copy_from_local(tmp_output)
-        self.publish_message(
-            "successfully produced dataset {dataset:s}, file {file_index:d}".format(
-                dataset=_dataset_inst.name, file_index=_file_index
-            )
-        )
-
-
-class AnalysisAODSIMConfiguration(AnalysisTask, law.LocalWorkflow):
-    config = "mc_ul18_fastsim_aodsim"
-
-    exclude_params_req_get = {"workflow"}
-    prefer_params_cli = {"workflow"}
 
     def create_branch_map(self):
         # create a map that associates each output file with a branch of the workflow
@@ -336,7 +278,7 @@ class AnalysisAODSIMConfiguration(AnalysisTask, law.LocalWorkflow):
                 branch_map[i] = {
                     "dataset_inst": _dataset_inst,
                     "file_index": file_index,
-                    "keys": [_dataset_inst.keys[file_index]],
+                    "key": _dataset_inst.keys[file_index],
                     "n_events": _dataset_inst.get_aux("n_events_per_file"),
                 }
                 i += 1
@@ -344,94 +286,26 @@ class AnalysisAODSIMConfiguration(AnalysisTask, law.LocalWorkflow):
 
     def workflow_requires(self):
         reqs = {}
-        for branch, branch_data in self.get_branch_map().items():
+        for branch_data in self.get_branch_map().values():
             _dataset_inst = branch_data["dataset_inst"]
-            reqs[
-                "config_template__branch_{branch:d}".format(branch=branch)
-            ] = AODSIMConfigurationTemplate.req(self, dataset=_dataset_inst.name)
-        return reqs
-
-    def requires(self):
-        reqs = {}
-        _dataset_inst = self.branch_data["dataset_inst"]
-        reqs["config_template"] = AODSIMConfigurationTemplate.req(self, dataset=_dataset_inst.name)
-        return reqs
-
-    def output(self):
-        filename = os.path.basename(self.branch_data["keys"][0]).replace(".root", "_cfg.py")
-        target = self.local_target(self.__class__.__name__, filename)
-        return target
-
-    def run(self):
-        # get the output and branch data
-        _output = self.output()
-        _dataset_inst = self.branch_data["dataset_inst"]
-        _keys = self.branch_data["keys"]
-        _file_index = self.branch_data["file_index"]
-        _n_events = self.branch_data["n_events"]
-
-        # prepare arguments for the placeholders
-        python_filename = _output.basename
-        fileout = "file:{filename:s}".format(filename=os.path.basename(_keys[0]))
-
-        # load the configuration template and replace placeholders for configuration filename,
-        # production output file and number of events
-        _input_config_template = self.input()["config_template"]
-        template = Template(_input_config_template.load(formatter="text"))
-        with _input_config_template.open(mode="r") as f:
-            template = Template(f.read())
-        content = template.render(
-            python_filename=python_filename,
-            cms_driver_fileout=fileout,
-            number_of_events=_n_events,
-        )
-
-        # add luminosity block modifier to the end of the configuration file
-        content += (
-            "\n\nprocess.source.firstLuminosityBlock = cms.untracked.uint32(1 + "
-            + "{file_index:d})".format(file_index=_file_index)
-        )
-
-        # write useable config to the output target
-        _output.dump(content, formatter="text")
-        self.logger.info(
-            "successfully saved run config for dataset {dataset:s}, file {file_index:d}".format(
-                dataset=_dataset_inst.name, file_index=_file_index
+            _file_index = branch_data["file_index"]
+            reqs["config"] = AODSIMConfiguration.req(
+                self, dataset=_dataset_inst.name, branch=_file_index
             )
-        )
-
-
-class AnalysisAODSIMProduction(AnalysisTask, HTCondorWorkflow, law.LocalWorkflow):
-    config = "mc_ul18_fastsim_aodsim"
-
-    def create_branch_map(self):
-        # create a map that associates each output file with a branch of the workflow
-        branch_map = {}
-        i = 0
-        for _dataset_inst in self.config_inst.datasets:
-            for file_index in range(_dataset_inst.n_files):
-                branch_map[i] = {
-                    "dataset_inst": _dataset_inst,
-                    "file_index": file_index,
-                    "keys": [_dataset_inst.keys[file_index]],
-                    "n_events": _dataset_inst.get_aux("n_events_per_file"),
-                }
-                i += 1
-        return branch_map
-
-    def workflow_requires(self):
-        reqs = {}
-        reqs["config"] = AnalysisAODSIMConfiguration.req(self, branches=self.branches)
         return reqs
 
     def requires(self):
         reqs = {}
-        reqs["config"] = AnalysisAODSIMConfiguration.req(self, branch=self.branch)
+        _dataset_inst = self.branch_data["dataset_inst"]
+        _file_index = self.branch_data["file_index"]
+        reqs["config"] = AODSIMConfiguration.req(
+            self, dataset=_dataset_inst.name, branch=_file_index
+        )
         return reqs
 
     def output(self):
-        _keys = self.branch_data["keys"]
-        parts = [p for p in _keys[0].split("/") if p.strip() != ""]
+        _key = self.branch_data["key"]
+        parts = [p for p in _key.split("/") if p.strip() != ""]
         target = self.remote_target(*parts)
         return target
 
