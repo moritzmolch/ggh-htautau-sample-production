@@ -165,6 +165,7 @@ cython_debug/
 # packages and temporary directory (contains software for example)
 
 # output and working directories
+archive/
 _config/
 bundle/
 data/

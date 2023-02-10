@@ -77,7 +77,7 @@ action () {
     fi
 
     # activate CMSSW installation
-    source "/cvmfs/cms.cern.ch/cmsset_default.sh" "" &&
+    source "/cvmfs/cms.cern.ch/cmsset_default.sh" "" || return "$?"
     cd "${CMSSW_BASE}/src" || return "$?"
     eval "$( scramv1 runtime -sh )" || return "$?"
     cd "${current_dir}" || return "$?"
@@ -90,13 +90,15 @@ action () {
     if [[ ! -d "${PROD_SOFTWARE_LOCAL}" ]]; then
         (
             mkdir -p "${PROD_SOFTWARE_LOCAL}" &&
-            prod_pip_install law &&
-            prod_pip_install order
+            prod_pip_install jinja2 &&
+            prod_pip_install git+https://github.com/riga/law.git@v0.1.12 &&
+            prod_pip_install git+https://github.com/riga/order.git@v2.0.1
         ) || return "$?"
     fi
 
     prod_add_bin "${PROD_SOFTWARE_LOCAL}/bin"
     prod_add_py "${PROD_SOFTWARE_LOCAL}/lib/python2.7/site-packages"
+    prod_add_py "${PROD_BASE}"
 
     # VOMS proxy settings
     export GLOBUS_THREAD_MODEL="none"
@@ -105,18 +107,28 @@ action () {
     if [[ $( id -u ) && "$?" = "0" ]]; then
         user_id="$( id -u )"
         export X509_USER_PROXY="${X509_USER_PROXY:-/tmp/x509up_u${user_id}}"
+        echo "> export X509_USER_PROXY=\"\${X509_USER_PROXY:-/tmp/x509up_u\${user_id}}\""
+        echo "${X509_USER_PROXY}"
     fi
     export VOMS_USERCONF="/cvmfs/grid.cern.ch/etc/grid-security/vomses"
 
     ## GFAL2 setup
     local grid_base="/cvmfs/grid.cern.ch/centos7-ui-4.0.3-1_umd4v1"
+    if [[ ! -d "${grid_base}" ]]; then
+        2>&1 echo "base directory ${grid_base} does not exist, cannot set up gfal"
+        return "1"
+    fi
     export GFAL_CONFIG_DIR="${grid_base}/etc/gfal2.d"
     export GFAL_PLUGIN_DIR="${grid_base}/usr/lib64/gfal2-plugins"
     export LD_LIBRARY_PATH="${LD_LIBRARY_PATH}:${grid_base}/usr/lib64:${grid_base}/usr/lib"
     export PATH="${PATH}:${grid_base}/usr/bin:${grid_base}/usr/sbin"
     export PYTHONPATH="${PYTHONPATH}:${grid_base}/usr/lib64/python2.7/site-packages:${grid_base}/usr/lib/python2.7/site-packages"
 
-    prod_add_py "${PROD_BASE}"
+    echo "> gfal bindings file"
+    echo "$( python -c "import gfal2; print(gfal2.__file__)" )"
+
+    echo "> which gfal-ls"
+    [[ "$( which gfal-ls )" && "$?" == "0" ]] && echo "$( which gfal-ls )" || return "$?"
 
     # law setup
     export LAW_HOME="${PROD_BASE}/.law"
