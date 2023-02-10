@@ -101,7 +101,7 @@ class MINIAODConfigurationTemplate(DatasetTask):
 class MINIAODConfiguration(DatasetTask, law.LocalWorkflow):
     config = "mc_ul18_fastsim_miniaod"
 
-    exclude_params_req_get = {"workflow"}
+    exclude_params_req_get = {"workflow", "branches"}
     prefer_params_cli = {"workflow"}
 
     def create_branch_map(self):
@@ -110,7 +110,7 @@ class MINIAODConfiguration(DatasetTask, law.LocalWorkflow):
             self.config_inst.get_aux("config_previous")
         )
         _dataset_previous_inst = _config_previous_inst.get_dataset(
-            self.dataset_inst.name(
+            self.dataset_inst.name.replace(
                 self.config_inst.get_aux("step"), _config_previous_inst.get_aux("step")
             )
         )
@@ -125,11 +125,6 @@ class MINIAODConfiguration(DatasetTask, law.LocalWorkflow):
                 "n_events": self.dataset_inst.get_aux("n_events_per_file"),
             }
         return branch_map
-
-    def workflow_requires(self):
-        reqs = {}
-        reqs["config_template"] = MINIAODConfigurationTemplate.req(self, dataset=self.dataset)
-        return reqs
 
     def requires(self):
         reqs = {}
@@ -179,44 +174,42 @@ class MINIAODProduction(AnalysisTask, HTCondorWorkflow, law.LocalWorkflow):
     config = "mc_ul18_fastsim_miniaod"
 
     def create_branch_map(self):
-        # a generic branch map that associates each file of each dataset of the analysis with a
-        # branch
+        # create a map that associates each output file with a branch of the workflow
         _config_previous_inst = self.analysis_inst.get_config(
             self.config_inst.get_aux("config_previous")
         )
-        _dataset_previous_inst = _config_previous_inst.get_dataset(
-            self.dataset_inst.name(
-                self.config_inst.get_aux("step"), _config_previous_inst.get_aux("step")
-            )
-        )
         branch_map = {}
-        for i in range(self.dataset_inst.n_files):
-            branch_map[i] = {
-                "dataset_inst": self.dataset_inst,
-                "dataset_previous_inst": _dataset_previous_inst,
-                "file_index": i,
-                "key": self.dataset_inst.keys[i],
-                "key_previous": _dataset_previous_inst.keys[i],
-                "n_events": self.dataset_inst.get_aux("n_events_per_file"),
-            }
+        i = 0
+        for _dataset_inst in self.config_inst.datasets:
+            _dataset_previous_inst = _config_previous_inst.get_dataset(
+                _dataset_inst.name.replace(
+                    self.config_inst.get_aux("step"), _config_previous_inst.get_aux("step")
+                )
+            )
+            for file_index in range(_dataset_inst.n_files):
+                branch_map[i] = {
+                    "dataset_inst": _dataset_inst,
+                    "dataset_previous_inst": _dataset_previous_inst,
+                    "file_index": file_index,
+                    "key": _dataset_inst.keys[file_index],
+                    "key_previous": _dataset_previous_inst.keys[file_index],
+                    "n_events": _dataset_inst.get_aux("n_events_per_file"),
+                }
+                i += 1
         return branch_map
 
     def workflow_requires(self):
-        datasets = od.UniqueObjectIndex(od.Dataset)
-        for branch_data in self.get_branch_map().values():
-            datasets.add(branch_data["dataset_inst"], overwrite=True)
         reqs = {}
-        for i, _dataset_inst in enumerate(datasets):
-            reqs["config_{i:d}".format(i=i)] = MINIAODConfiguration.req(
-                self, dataset=_dataset_inst.name
-            )
         reqs["aodsim"] = AODSIMProduction.req(self, branches=self.branches)
         return reqs
 
     def requires(self):
         _dataset_inst = self.branch_data["dataset_inst"]
+        _file_index = self.branch_data["file_index"]
         reqs = {}
-        reqs["config"] = MINIAODConfiguration.req(self, dataset=_dataset_inst.name)
+        reqs["config"] = MINIAODConfiguration.req(
+            self, dataset=_dataset_inst.name, branch=_file_index
+        )
         reqs["aodsim"] = AODSIMProduction.req(self, branch=self.branch)
         return reqs
 
@@ -250,7 +243,7 @@ class MINIAODProduction(AnalysisTask, HTCondorWorkflow, law.LocalWorkflow):
 
         # print information about production
         self.publish_message(
-            "Producing dataset {dataset:s}, file {file_index:s}\n".format(
+            "Producing dataset {dataset:s}, file {file_index:d}\n".format(
                 dataset=_dataset_inst.name, file_index=_file_index
             )
             + ">> configuration:       {config:s}\n".format(config=tmp_config.basename)

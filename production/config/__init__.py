@@ -63,7 +63,7 @@ cfg_miniaod = ggh_htautau_production.add_config(
 cfg_nanoaod = ggh_htautau_production.add_config(
     mc_ul18_fastsim_nanoaod,
     aux=dict(
-        step="nanoaod",
+        step="nanoaod_v2",
         config_previous=cfg_miniaod.name,
         cms_driver_kwargs={
             "customise": "Configuration/DataProcessing/Utils.addMonitoring",

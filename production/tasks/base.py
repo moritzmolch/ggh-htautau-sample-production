@@ -245,7 +245,11 @@ class HTCondorWorkflow(law.htcondor.HTCondorWorkflow):
 
     def htcondor_job_config(self, config, job_num, branches):
         # create directory for log files if it doesn't exist
-        log_dir = os.path.join(self.htcondor_output_directory().path, "logs")
+        log_dir = os.path.join(
+            self.htcondor_output_directory().path,
+            "logs",
+            self.__class__.__name__,
+        )
         log_target = law.LocalDirectoryTarget(log_dir)
         if not log_target.exists():
             log_target.touch()

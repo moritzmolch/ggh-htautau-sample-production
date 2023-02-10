@@ -124,8 +124,8 @@ class AODSIMConfigurationTemplate(DatasetTask):
 class AODSIMConfiguration(DatasetTask, law.LocalWorkflow):
     config = "mc_ul18_fastsim_aodsim"
 
-    exclude_params_req_get = {"workflow"}
-    prefer_params_cli = {"workflow"}
+    exclude_params_req_get = {"workflow", "branches"}
+    prefer_params_cli = {"workflow", "branches"}
 
     def create_branch_map(self):
         # branch map that associates each file of the dataset with a branch
@@ -138,11 +138,6 @@ class AODSIMConfiguration(DatasetTask, law.LocalWorkflow):
                 "n_events": self.dataset_inst.get_aux("n_events_per_file"),
             }
         return branch_map
-
-    def workflow_requires(self):
-        reqs = {}
-        reqs["config_template"] = AODSIMConfigurationTemplate.req(self, dataset=self.dataset)
-        return reqs
 
     def requires(self):
         reqs = {}
@@ -196,6 +191,9 @@ class AODSIMConfiguration(DatasetTask, law.LocalWorkflow):
 class AODSIMProduction(AnalysisTask, HTCondorWorkflow, law.LocalWorkflow):
     config = "mc_ul18_fastsim_aodsim"
 
+    exclude_params_req_get = {"workflow", "branches"}
+    prefer_params_cli = {"workflow", "branches"}
+
     def create_branch_map(self):
         # create a map that associates each output file with a branch of the workflow
         branch_map = {}
@@ -210,16 +208,6 @@ class AODSIMProduction(AnalysisTask, HTCondorWorkflow, law.LocalWorkflow):
                 }
                 i += 1
         return branch_map
-
-    def workflow_requires(self):
-        reqs = {}
-        for branch_data in self.get_branch_map().values():
-            _dataset_inst = branch_data["dataset_inst"]
-            _file_index = branch_data["file_index"]
-            reqs["config"] = AODSIMConfiguration.req(
-                self, dataset=_dataset_inst.name, branch=_file_index
-            )
-        return reqs
 
     def requires(self):
         reqs = {}
@@ -257,7 +245,7 @@ class AODSIMProduction(AnalysisTask, HTCondorWorkflow, law.LocalWorkflow):
 
         # print information about production
         self.publish_message(
-            "Producing dataset {dataset:s}, file {file_index:s}\n".format(
+            "Producing dataset {dataset:s}, file {file_index:d}\n".format(
                 dataset=_dataset_inst.name, file_index=_file_index
             )
             + ">> configuration:       {config:s}\n".format(config=tmp_config.basename)
