@@ -191,7 +191,7 @@ class NANOAODProduction(AnalysisTask, HTCondorWorkflow, law.LocalWorkflow):
         for _dataset_inst in self.config_inst.datasets:
             _dataset_previous_inst = _config_previous_inst.get_dataset(
                 _dataset_inst.name.replace(
-                    self._config_inst.get_aux("step"), _config_previous_inst.get_aux("step")
+                    self.config_inst.get_aux("step"), _config_previous_inst.get_aux("step")
                 )
             )
             for file_index in range(_dataset_inst.n_files):
@@ -208,7 +208,14 @@ class NANOAODProduction(AnalysisTask, HTCondorWorkflow, law.LocalWorkflow):
 
     def workflow_requires(self):
         reqs = {}
-        reqs["miniaod"] = MINIAODProduction.reqs(self, branches=self.branches)
+        for _branch, _branch_data in self.get_branch_map().items():
+            _dataset_inst = _branch_data["dataset_inst"]
+            _file_index = _branch_data["file_index"]
+            reqs["config_{i:d}".format(i=_branch)] = NANOAODConfiguration.req(
+                self, dataset=_dataset_inst.name, branch=_file_index
+            )
+        reqs["miniaod"] = MINIAODProduction.req(self, branches=self.branches)
+        return reqs
 
     def requires(self):
         _dataset_inst = self.branch_data["dataset_inst"]

@@ -200,6 +200,12 @@ class MINIAODProduction(AnalysisTask, HTCondorWorkflow, law.LocalWorkflow):
 
     def workflow_requires(self):
         reqs = {}
+        for _branch, _branch_data in self.get_branch_map().items():
+            _dataset_inst = _branch_data["dataset_inst"]
+            _file_index = _branch_data["file_index"]
+            reqs["config_{i:d}".format(i=_branch)] = MINIAODConfiguration.req(
+                self, dataset=_dataset_inst, branch=_file_index
+            )
         reqs["aodsim"] = AODSIMProduction.req(self, branches=self.branches)
         return reqs
 
