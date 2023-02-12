@@ -63,7 +63,7 @@ cfg_miniaod = ggh_htautau_production.add_config(
 cfg_nanoaod = ggh_htautau_production.add_config(
     mc_ul18_fastsim_nanoaod,
     aux=dict(
-        step="nanoaod_v2",
+        step="nanoaod",
         config_previous=cfg_miniaod.name,
         cms_driver_kwargs={
             "customise": "Configuration/DataProcessing/Utils.addMonitoring",
@@ -71,9 +71,10 @@ cfg_nanoaod = ggh_htautau_production.add_config(
             + " = RandomNumberServiceHelper(process.RandomNumberGeneratorService);randSvc.populate()",
             "step": "NANO",
             "datatier": "NANOAODSIM",
+            "eventcontent": "NANOAODSIM",
             "conditions": "106X_upgrade2018_realistic_v16_L1v1",
             "beamspot": "Realistic25ns13TeVEarly2018Collision",
-            "era": "Run2_2018,run2_nanoaod_106Xv2",
+            "era": "Run2_2018,run2_nanoAOD_106Xv2",
         },
         cms_driver_args=["fast", "no_exec", "mc"],
     ),
@@ -128,7 +129,7 @@ i_cfg = 1
 for cfg in configs:
     i_ds = 10
     for higgs_mass in range(50, 250, 1):
-        n_files = 6
+        n_files = 15
         n_events_per_file = 2000
         d = od.Dataset(
             name="ggh_htautau_mh{higgs_mass:d}_{step:s}".format(
