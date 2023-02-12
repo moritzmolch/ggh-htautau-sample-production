@@ -133,3 +133,70 @@ or by explicitly setting the allowed number of parallel jobs:
 ```bash
 law run AODSIMProduction --parallel-jobs 400
 ```
+
+## MINIAOD step
+
+Before obtaining the final dataset files for the analysis an intermediate files in the `MINIAOD` format have to be produced. The `cmsDriver.py` command for the configuration of such a production looks like this:
+
+```bash
+cmsDriver.py --python_filename GluGluHToTauTau_MH50_pythia8_TuneCP5_miniaod_0_cfg.py \
+             --filein file:GluGluHToTauTau_MH50_pythia8_TuneCP5_aodsim_0.root \
+             --fileout file:GluGluHToTauTau_MH50_pythia8_TuneCP5_miniaod_0.root \
+             --customise Configuration/DataProcessing/Utils.addMonitoring \
+             --customise_commands from IOMC.RandomEngine.RandomServiceHelper import RandomNumberServiceHelper;randSvc = RandomNumberServiceHelper(process.RandomNumberGeneratorService);randSvc.populate() \
+             --era Run2_2018 \
+             --conditions 106X_upgrade2018_realistic_v16_L1v1 \
+             --beamspot Realistic25ns13TeVEarly2018Collision \
+             --procModifiers run2_miniAOD_UL \
+             --step PAT \
+             --eventcontent MINIAODSIM \
+             --datatier MINIAODSIM \
+             --geometry DB:Extended \
+             --runUnscheduled \
+             --fast \
+             --no_exec \
+             --mc \
+             --number -1
+```
+
+In addition to the output file specified with `--fileout`  the input `AODSIM` file has to be passed as value of the argument `--filein`. Setting `--number` to the value of `-1` means that all event from the input file are processed and saved to the output file.
+
+As for the `AODSIM` production configurations are generated using configuration templates for each defined value of the Higgs mass. The production of MINIAOD files in jobs on the ETP HTCondor batch system is triggered with
+
+```bash
+law run MINIAODProduction
+```
+
+Missing configuration files and `AODSIM` files are produced on demand.
+
+Also here it might be appropriate to not submit all jobs at once, which can be achieved by using the `--branches` or `--parallel-jobs` command line option.
+
+## NANOAOD step
+
+For effective usage in analyses files in the `NANOAOD` format have to be produced. The `cmsDriver.py` command for configuring such a production looks like this:
+
+```bash
+cmsDriver.py --python_filename GluGluHToTauTau_MH50_pythia8_TuneCP5_nanoaod_0_cfg.py \
+             --filein file:GluGluHToTauTau_MH50_pythia8_TuneCP5_miniaod_0.root \
+             --fileout file:GluGluHToTauTau_MH50_pythia8_TuneCP5_nanoaod_0.root \
+             --customise Configuration/DataProcessing/Utils.addMonitoring \
+             --customise_commands from IOMC.RandomEngine.RandomServiceHelper import RandomNumberServiceHelper;randSvc = RandomNumberServiceHelper(process.RandomNumberGeneratorService);randSvc.populate() \
+             --era Run2_2018,run2_nanoAOD_106Xv2 \
+             --conditions 106X_upgrade2018_realistic_v16_L1v1 \
+             --beamspot Realistic25ns13TeVEarly2018Collision \
+             --eventcontent NANOAODSIM \
+             --datatier NANOAODSIM \
+             --step NANO \
+             --fast \
+             --no_exec \
+             --mc \
+             --number -1
+```
+
+The production of `NANOAOD` files is triggered with:
+
+```bash
+law run NANOAODProduction
+```
+
+Also here, missing configuration files as well as missing `AODSIM` and `MINIAOD` files are produced on demand before starting the production of `NANOAOD` files. `NANOAOD` files are produced within jobs on the ETP HTCondor batch system. The scope of the production can be limited with the `--branches` or the `--parallel-jobs` command line option.
