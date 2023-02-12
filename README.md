@@ -15,8 +15,7 @@ source setup.sh
 
 installs missing software requirements and sets the shell environment for the production workflow.
 
-
-## Fragment
+## Fragment generation
 
 The root object of the Monte Carlo production chain is the _fragment_ which contains information about the physics process at generator level. For the generation of gg &#x2192; H &#x2192; &#x1D70F;&#x1D70F; events with `Pythia8` a modification of the fragment `GGToHtautau_13TeV_pythia8_cff.py` from CMSSW
 is used. The original fragment is available in the [cms-sw/cmssw GitHub repository](https://github.com/cms-sw/cmssw/blob/CMSSW_10_6_X/Configuration/Generator/python/GGToHtautau_13TeV_pythia8_cff.py).
@@ -55,7 +54,7 @@ The generated files are placed in the `src/Configuration/GenProduction/python` d
 law run CompileCMSSW
 ```
 
-## AODSIM step
+## AODSIM production
 
 Configuration files for event production in CMSSW are created with the `cmsDriver.py` tool. 
 
@@ -134,7 +133,7 @@ or by explicitly setting the allowed number of parallel jobs:
 law run AODSIMProduction --parallel-jobs 400
 ```
 
-## MINIAOD step
+## MINIAOD production
 
 Before obtaining the final dataset files for the analysis an intermediate files in the `MINIAOD` format have to be produced. The `cmsDriver.py` command for the configuration of such a production looks like this:
 
@@ -171,7 +170,7 @@ Missing configuration files and `AODSIM` files are produced on demand.
 
 Also here it might be appropriate to not submit all jobs at once, which can be achieved by using the `--branches` or `--parallel-jobs` command line option.
 
-## NANOAOD step
+## NANOAOD production
 
 For effective usage in analyses files in the `NANOAOD` format have to be produced. The `cmsDriver.py` command for configuring such a production looks like this:
 
