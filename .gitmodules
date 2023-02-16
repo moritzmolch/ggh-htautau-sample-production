@@ -1,0 +1,9 @@
+[submodule "modules/law"]
+	path = modules/law
+	url = https://github.com/riga/law
+[submodule "modules/order"]
+	path = modules/order
+	url = https://github.com/riga/order
+[submodule "modules/scinum"]
+	path = modules/scinum
+	url = https://github.com/riga/scinum
