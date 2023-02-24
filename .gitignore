@@ -174,3 +174,6 @@ tmp/
 
 # software installations
 software/
+
+# VS Code settings
+.vscode/
