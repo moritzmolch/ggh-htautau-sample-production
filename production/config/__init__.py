@@ -129,7 +129,7 @@ i_cfg = 1
 for cfg in configs:
     i_ds = 10
     for higgs_mass in range(50, 250, 1):
-        n_files = 15
+        n_files = 30
         n_events_per_file = 2000
         d = od.Dataset(
             name="ggh_htautau_mh{higgs_mass:d}_{step:s}".format(
