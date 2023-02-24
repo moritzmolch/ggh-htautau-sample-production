@@ -209,6 +209,16 @@ class AODSIMProduction(AnalysisTask, HTCondorWorkflow, law.LocalWorkflow):
                 i += 1
         return branch_map
 
+    def workflow_requires(self):
+        reqs = {}
+        for _branch, _branch_data in self.get_branch_map().items():
+            _dataset_inst = _branch_data["dataset_inst"]
+            _file_index = _branch_data["file_index"]
+            reqs["config_{i:d}".format(i=_branch)] = AODSIMConfiguration.req(
+                self, dataset=_dataset_inst, branch=_file_index
+            )
+        return reqs
+
     def requires(self):
         reqs = {}
         _dataset_inst = self.branch_data["dataset_inst"]
