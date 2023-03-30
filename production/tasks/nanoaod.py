@@ -117,8 +117,7 @@ class NANOAODConfiguration(DatasetTask, law.LocalWorkflow):
         branch_map = {}
         for i in range(self.dataset_inst.n_files):
             branch_map[i] = {
-                "dataset_inst": self.dataset_inst,
-                "dataset_previous_inst": _dataset_previous_inst,
+                "dataset_name": self.dataset_inst.name,
                 "file_index": i,
                 "key": self.dataset_inst.keys[i],
                 "key_previous": _dataset_previous_inst.keys[i],
@@ -144,7 +143,7 @@ class NANOAODConfiguration(DatasetTask, law.LocalWorkflow):
     def run(self):
         # get the output and branch data
         _output = self.output()
-        _dataset_inst = self.branch_data["dataset_inst"]
+        _dataset_name = self.branch_data["dataset_name"]
         _file_index = self.branch_data["file_index"]
         _key = self.branch_data["key"]
         _key_previous = self.branch_data["key_previous"]
@@ -170,7 +169,7 @@ class NANOAODConfiguration(DatasetTask, law.LocalWorkflow):
         _output.dump(content, formatter="text")
         self.publish_message(
             "successfully saved run config for dataset {dataset:s}, file {file_index:d}".format(
-                dataset=_dataset_inst.name, file_index=_file_index
+                dataset=_dataset_name, file_index=_file_index
             )
         )
 
@@ -182,6 +181,7 @@ class NANOAODProduction(AnalysisTask, HTCondorWorkflow, law.LocalWorkflow):
     prefer_params_cli = {"workflow", "branches"}
 
     def create_branch_map(self):
+        import pdb; pdb.set_trace()
         # create a map that associates each output file with a branch of the workflow
         _config_previous_inst = self.analysis_inst.get_config(
             self.config_inst.get_aux("config_previous")
@@ -196,8 +196,7 @@ class NANOAODProduction(AnalysisTask, HTCondorWorkflow, law.LocalWorkflow):
             )
             for file_index in range(_dataset_inst.n_files):
                 branch_map[i] = {
-                    "dataset_inst": _dataset_inst,
-                    "dataset_previous_inst": _dataset_previous_inst,
+                    "dataset_name": _dataset_inst.name,
                     "file_index": file_index,
                     "key": _dataset_inst.keys[file_index],
                     "key_previous": _dataset_previous_inst.keys[file_index],
@@ -209,20 +208,20 @@ class NANOAODProduction(AnalysisTask, HTCondorWorkflow, law.LocalWorkflow):
     def workflow_requires(self):
         reqs = {}
         for _branch, _branch_data in self.get_branch_map().items():
-            _dataset_inst = _branch_data["dataset_inst"]
+            _dataset_name = _branch_data["dataset_name"]
             _file_index = _branch_data["file_index"]
             reqs["config_{i:d}".format(i=_branch)] = NANOAODConfiguration.req(
-                self, dataset=_dataset_inst.name, branch=_file_index
+                self, dataset=_dataset_name, branch=_file_index
             )
         reqs["miniaod"] = MINIAODProduction.req(self, branches=self.branches)
         return reqs
 
     def requires(self):
-        _dataset_inst = self.branch_data["dataset_inst"]
+        _dataset_name = self.branch_data["dataset_name"]
         _file_index = self.branch_data["file_index"]
         reqs = {}
         reqs["config"] = NANOAODConfiguration.req(
-            self, dataset=_dataset_inst.name, branch=_file_index
+            self, dataset=_dataset_name, branch=_file_index
         )
         reqs["miniaod"] = MINIAODProduction.req(self, branch=self.branch)
         return reqs
@@ -236,7 +235,7 @@ class NANOAODProduction(AnalysisTask, HTCondorWorkflow, law.LocalWorkflow):
     def run(self):
         # get the output and the branch data
         _output = self.output()
-        _dataset_inst = self.branch_data["dataset_inst"]
+        _dataset_name = self.branch_data["dataset_name"]
         _file_index = self.branch_data["file_index"]
 
         # get the config file and the input AODSIM dataset
@@ -258,7 +257,7 @@ class NANOAODProduction(AnalysisTask, HTCondorWorkflow, law.LocalWorkflow):
         # print information about production
         self.publish_message(
             "Producing dataset {dataset:s}, file {file_index:d}\n".format(
-                dataset=_dataset_inst.name, file_index=_file_index
+                dataset=_dataset_name, file_index=_file_index
             )
             + ">> configuration:       {config:s}\n".format(config=tmp_config.basename)
             + ">> input dataset file:  {input:s}\n".format(input=tmp_input_miniaod.basename)
@@ -283,6 +282,6 @@ class NANOAODProduction(AnalysisTask, HTCondorWorkflow, law.LocalWorkflow):
         _output.copy_from_local(tmp_output)
         self.publish_message(
             "successfully produced dataset {dataset:s}, file {file_index:d}".format(
-                dataset=_dataset_inst.name, file_index=_file_index
+                dataset=_dataset_name, file_index=_file_index
             )
         )
