@@ -3,7 +3,7 @@ import luigi
 import os
 import subprocess
 
-from production.config import ggh_htautau_production
+from production.config import ProductionConfig  #  ggh_htautau_production
 
 
 law.contrib.load("cms", "git", "htcondor", "tasks", "wlcg")
@@ -41,7 +41,7 @@ class AnalysisTask(BaseTask):
 
     def __init__(self, *args, **kwargs):
         super(AnalysisTask, self).__init__(*args, **kwargs)
-        self.analysis_inst = ggh_htautau_production
+        self.analysis_inst = ProductionConfig().analysis  # ggh_htautau_production
         self.config_inst = self.analysis_inst.get_config(self.config)
 
 
