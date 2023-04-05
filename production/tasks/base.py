@@ -41,7 +41,7 @@ class AnalysisTask(BaseTask):
 
     def __init__(self, *args, **kwargs):
         super(AnalysisTask, self).__init__(*args, **kwargs)
-        self.analysis_inst = ProductionConfig().analysis  # ggh_htautau_production
+        self.analysis_inst = ProductionConfig().get_analysis()  # ggh_htautau_production
         self.config_inst = self.analysis_inst.get_config(self.config)
 
 

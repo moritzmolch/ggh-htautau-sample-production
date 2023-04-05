@@ -1,20 +1,21 @@
 import order as od
 
 
-class ProductionConfig():
+class ProductionConfig(object):
 
-    instance = None
-    analysis = None
+    _instance = None
+    _analysis = None
 
     def __new__(cls, *args, **kwargs):
-        if not isinstance(cls.instance, cls):
-            cls.instance = object.__new__(cls)
-            cls.analysis = cls.init_analysis()
+        if not isinstance(cls._instance, cls):
+            cls._instance = object.__new__(cls)
+            cls._analysis = cls.init_analysis()
         return cls._instance
 
     def get_analysis(self):
-        return self.__class__.analysis
+        return self.__class__._analysis
 
+    @classmethod
     def init_analysis(cls):
         # the analysis
         ggh_htautau_production = od.Analysis(name="ggh_htautau_production", id=0)
