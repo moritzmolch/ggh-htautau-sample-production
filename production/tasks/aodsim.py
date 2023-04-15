@@ -20,7 +20,7 @@ class AODSIMConfigurationTemplate(DatasetTask):
         reqs = {}
         _dataset_inst = self.dataset_inst
         reqs["fragment"] = FragmentGeneration.req(
-            self, higgs_mass=_dataset_inst.processes.get_first().x.higgs_mass
+            self, higgs_mass=_dataset_inst.processes.get_first().name, branch=0
         )
         return reqs
 
