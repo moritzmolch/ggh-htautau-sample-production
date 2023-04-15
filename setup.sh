@@ -33,6 +33,7 @@ action () {
 
     # set the destination for additional software installations
     export PROD_SOFTWARE_BASE="${PROD_BASE}/software"
+    export PROD_MODULES_BASE="${PROD_BASE}/modules"
     export PROD_SOFTWARE_LOCAL="${PROD_SOFTWARE_BASE}/local"
     export PROD_SCRAM_ARCH="slc7_amd64_gcc700"
     export PROD_CMSSW_VERSION="CMSSW_10_6_29_patch1"
@@ -90,9 +91,11 @@ action () {
     if [[ ! -d "${PROD_SOFTWARE_LOCAL}" ]]; then
         (
             mkdir -p "${PROD_SOFTWARE_LOCAL}" &&
-            prod_pip_install jinja2 &&
-            prod_pip_install git+https://github.com/riga/law.git@v0.1.12 &&
-            prod_pip_install git+https://github.com/riga/order.git@v2.0.1
+            prod_pip_install "jinja2" &&
+            prod_pip_install "six>=1.13" &&
+            prod_pip_install "luigi>=2.8.2,<3" &&
+            prod_pip_install "git+https://github.com/riga/law@7ffdc05c63d5f404e3e3df7550218c8b97dac38c" &&
+            prod_pip_install "git+https://github.com/riga/order@2b2b69579a867ce5f1fa0a89fe0b378155ddd2a8"
         ) || return "$?"
     fi
 

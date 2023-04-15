@@ -107,7 +107,7 @@ class ProductionConfig(object):
 
         i = 1
 
-        for higgs_mass in range(50, 250, 1):
+        for higgs_mass in range(50, 350, 1):
             ggh_htautau.add_process(
                 name="ggh_htautau_mh{higgs_mass:d}".format(higgs_mass=higgs_mass),
                 id=i,
@@ -120,7 +120,7 @@ class ProductionConfig(object):
                 ),
             )
             i += 1
-        for higgs_mass in range(250, 805, 5):
+        for higgs_mass in range(350, 805, 5):
             ggh_htautau.add_process(
                 name="ggh_htautau_mh{higgs_mass:d}".format(higgs_mass=higgs_mass),
                 id=i,
@@ -142,7 +142,7 @@ class ProductionConfig(object):
         i_cfg = 1
         for cfg in configs:
             i_ds = 10
-            for higgs_mass in range(50, 250, 1):
+            for higgs_mass in range(50, 150, 1):
                 n_files = 50
                 n_events_per_file = 2000
                 d = od.Dataset(
@@ -170,7 +170,92 @@ class ProductionConfig(object):
                 )
                 cfg.add_dataset(d)
                 i_ds += 10
-            for higgs_mass in range(250, 805, 5):
+            for higgs_mass in range(150, 250, 1):
+                n_files = 50
+                n_events_per_file = 2000
+                d = od.Dataset(
+                    name="ggh_htautau_mh{higgs_mass:d}_{step:s}".format(
+                        higgs_mass=higgs_mass, step=cfg.get_aux("step")
+                    ),
+                    id=i_ds + i_cfg,
+                    processes=[
+                        cfg.get_process("ggh_htautau_mh{higgs_mass:d}".format(higgs_mass=higgs_mass))
+                    ],
+                    keys=[
+                        "/{step:s}/GluGluHToTauTau_MH{higgs_mass:d}_pythia8_TuneCP5_{step:s}_{file_index:d}.root".format(
+                            step=cfg.get_aux("step"), higgs_mass=higgs_mass, file_index=i
+                        )
+                        for i in range(n_files)
+                    ],
+                    n_files=n_files,
+                    n_events=n_events_per_file * n_files,
+                    aux=dict(
+                        n_events_per_file=n_events_per_file,
+                        filename_prefix="GluGluHToTauTau_MH{higgs_mass:d}_pythia8_TuneCP5_{step:s}".format(
+                            higgs_mass=higgs_mass, step=cfg.get_aux("step")
+                        ),
+                    ),
+                )
+                cfg.add_dataset(d)
+                i_ds += 10
+            for higgs_mass in range(250, 350, 1):
+                n_files = 12
+                n_events_per_file = 4000
+                d = od.Dataset(
+                    name="ggh_htautau_mh{higgs_mass:d}_{step:s}".format(
+                        higgs_mass=higgs_mass, step=cfg.get_aux("step")
+                    ),
+                    id=i_ds + i_cfg,
+                    processes=[
+                        cfg.get_process("ggh_htautau_mh{higgs_mass:d}".format(higgs_mass=higgs_mass))
+                    ],
+                    keys=[
+                        "/{step:s}/GluGluHToTauTau_MH{higgs_mass:d}_pythia8_TuneCP5_{step:s}_{file_index:d}.root".format(
+                            step=cfg.get_aux("step"), higgs_mass=higgs_mass, file_index=i
+                        )
+                        for i in range(n_files)
+                    ],
+                    n_files=n_files,
+                    n_events=n_events_per_file * n_files,
+                    aux=dict(
+                        n_events_per_file=n_events_per_file,
+                        filename_prefix="GluGluHToTauTau_MH{higgs_mass:d}_pythia8_TuneCP5_{step:s}".format(
+                            higgs_mass=higgs_mass, step=cfg.get_aux("step")
+                        ),
+                    ),
+                )
+                cfg.add_dataset(d)
+                i_ds += 50
+            for higgs_mass in range(350, 600, 5):
+                n_files = 30
+                n_events_per_file = 4000
+                d = od.Dataset(
+                    name="ggh_htautau_mh{higgs_mass:d}_{step:s}".format(
+                        higgs_mass=higgs_mass, step=cfg.get_aux("step")
+                    ),
+                    id=i_ds + i_cfg,
+                    processes=[
+                        cfg.get_process("ggh_htautau_mh{higgs_mass:d}".format(higgs_mass=higgs_mass))
+                    ],
+                    keys=[
+                        "/{step:s}/GluGluHToTauTau_MH{higgs_mass:d}_pythia8_TuneCP5_{step:s}_{file_index:d}.root".format(
+                            step=cfg.get_aux("step"), higgs_mass=higgs_mass, file_index=i
+                        )
+                        for i in range(n_files)
+                    ],
+                    n_files=n_files,
+                    n_events=n_events_per_file * n_files,
+                    aux=dict(
+                        n_events_per_file=n_events_per_file,
+                        filename_prefix="GluGluHToTauTau_MH{higgs_mass:d}_pythia8_TuneCP5_{step:s}".format(
+                            higgs_mass=higgs_mass, step=cfg.get_aux("step")
+                        ),
+                    ),
+                )
+                cfg.add_dataset(d)
+                i_ds += 50
+            i_cfg += 1
+            for higgs_mass in range(600, 805, 5):
                 n_files = 15
                 n_events_per_file = 4000
                 d = od.Dataset(
@@ -199,5 +284,6 @@ class ProductionConfig(object):
                 cfg.add_dataset(d)
                 i_ds += 50
             i_cfg += 1
+
 
         return ggh_htautau_production

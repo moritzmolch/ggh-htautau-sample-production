@@ -181,7 +181,6 @@ class NANOAODProduction(AnalysisTask, HTCondorWorkflow, law.LocalWorkflow):
     prefer_params_cli = {"workflow", "branches"}
 
     def create_branch_map(self):
-        import pdb; pdb.set_trace()
         # create a map that associates each output file with a branch of the workflow
         _config_previous_inst = self.analysis_inst.get_config(
             self.config_inst.get_aux("config_previous")
