@@ -20,7 +20,7 @@ class AODSIMConfigurationTemplate(DatasetTask):
         reqs = {}
         _dataset_inst = self.dataset_inst
         reqs["fragment"] = FragmentGeneration.req(
-            self, higgs_mass=_dataset_inst.processes.get_first().name, branch=0
+            self, process=_dataset_inst.processes.get_first().name, branch=0
         )
         return reqs
 
@@ -234,6 +234,7 @@ class AODSIMProduction(AnalysisTask, HTCondorWorkflow, law.LocalWorkflow):
         target = self.remote_target(*parts)
         return target
 
+    @law.wlcg.ensure_voms_proxy
     def run(self):
         # get the output and the branch data
         _output = self.output()
